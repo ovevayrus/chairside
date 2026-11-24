@@ -18,7 +18,7 @@
     "e2e": "node e2e/run.mjs",
     "pack": "node scripts/not-implemented.mjs pack",
     "check:secrets": "node scripts/check-secrets.mjs",
-    "demo:local": "node scripts/not-implemented.mjs demo:local",
+    "demo:local": "node scripts/demo-local.mjs",
     "demo:seed": "tsx scripts/demo-seed.ts",
     "demo:block": "tsx scripts/demo-block.ts",
     "demo:reset": "tsx scripts/demo-reset.ts",

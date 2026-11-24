@@ -52,7 +52,7 @@ function shopDay(instant) {
 }
 
 /** UTC instant of a shop-local wall time on `day` (a UTC-midnight Date). */
-function shopTime(day, hour, minute = 0) {
+export function shopTime(day, hour, minute = 0) {
   const guess = new Date(day.getTime() + (hour * 60 + minute) * 60_000)
   return new Date(guess.getTime() - offsetMinutes(guess) * 60_000)
 }
@@ -69,14 +69,14 @@ const WEEKDAYS = [
 const MONTHS = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split(' ')
 
 /** The first Saturday at least two days ahead (the demo shop opens Saturdays). */
-function bookingDay(now) {
+export function bookingDay(now) {
   const today = shopDay(now)
   let day = new Date(today.getTime() + 2 * 86_400_000)
   while (day.getUTCDay() !== 6) day = new Date(day.getTime() + 86_400_000)
   return day
 }
 
-const spoken = (day) =>
+export const spoken = (day) =>
   `${WEEKDAYS[day.getUTCDay()]} ${day.getUTCDate()} ${MONTHS[day.getUTCMonth()]}`
 
 function save(name, frame) {
