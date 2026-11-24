@@ -1,0 +1,53 @@
+{
+  "name": "Karim's Barbers",
+  "timezone": "Asia/Dubai",
+  "hours": {
+    "1": { "open": "10:00", "close": "20:00" },
+    "2": { "open": "10:00", "close": "20:00" },
+    "3": { "open": "10:00", "close": "20:00" },
+    "4": { "open": "10:00", "close": "20:00" },
+    "5": { "open": "10:00", "close": "20:00" },
+    "6": { "open": "10:00", "close": "20:00" }
+  },
+  "bufferMin": 5,
+  "gridMin": 15,
+  "services": [
+    {
+      "id": "haircut",
+      "name": "Haircut",
+      "durationMin": 45,
+      "synonyms": ["haircut", "cut"]
+    },
+    {
+      "id": "skin_fade",
+      "name": "Skin fade",
+      "durationMin": 45,
+      "synonyms": ["fade", "skin fade", "skinfade"]
+    },
+    {
+      "id": "beard_trim",
+      "name": "Beard trim",
+      "durationMin": 20,
+      "synonyms": ["beard", "beard trim", "line up"]
+    },
+    {
+      "id": "haircut_beard",
+      "name": "Haircut + beard",
+      "durationMin": 60,
+      "synonyms": [
+        "cut and beard",
+        "haircut + beard",
+        "haircut and beard",
+        "full service"
+      ]
+    }
+  ],
+  "defaultServiceId": "haircut",
+  "replyTemplates": {
+    "book": "Booked! {service} on {day} {date} at {time}. See you, {name}!",
+    "offer": "Hi {name}! I can do {service} on {day} {date} at {time}. Does that work?",
+    "ask_day": "Hi {name}! Would {day} {date} work for your {service}, or is another day better?",
+    "ask_time": "Hi {name}! What time suits you for your {service} on {day} {date}?",
+    "offer_accepted": "See you on {day} {date} at {time}, {name}! Your {service} is booked."
+  }
+}

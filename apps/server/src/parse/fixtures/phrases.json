@@ -1,0 +1,441 @@
+[
+  {
+    "text": "3",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "sat 3pm?",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "can I come at 4",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T12:00:00.000Z"
+    }
+  },
+  {
+    "text": "hi",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "unknown",
+      "serviceId": "haircut"
+    }
+  },
+  {
+    "text": "fade tmrw after 5",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade",
+      "startUtc": "2026-11-29T13:00:00.000Z"
+    }
+  },
+  {
+    "text": "next monday 10:30 cut and beard",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut_beard",
+      "startUtc": "2026-11-30T06:30:00.000Z"
+    }
+  },
+  {
+    "text": "need to cancel my 4pm",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "cancel",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T12:00:00.000Z"
+    }
+  },
+  {
+    "text": "Can I get a skin fade Saturday 5 Dec at 3pm?",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade",
+      "startUtc": "2026-12-05T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "can you also do a beard trim Sat 5 Dec 5pm?",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "beard_trim",
+      "startUtc": "2026-12-05T13:00:00.000Z"
+    }
+  },
+  {
+    "text": "haircut today at noon",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T08:00:00.000Z"
+    }
+  },
+  {
+    "text": "beard tonight at 6pm",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "beard_trim",
+      "startUtc": "2026-11-28T14:00:00.000Z"
+    }
+  },
+  {
+    "text": "cut tomorrow at 11am",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-29T07:00:00.000Z"
+    }
+  },
+  {
+    "text": "monday 15:00 haircut + beard",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut_beard",
+      "startUtc": "2026-11-30T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "this sat 3:30 fade",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade",
+      "startUtc": "2026-11-28T11:30:00.000Z"
+    }
+  },
+  {
+    "text": "tuesday around 3 for a trim of my beard",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "beard_trim",
+      "startUtc": "2026-12-01T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "wednesday 3ish skinfade",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade",
+      "startUtc": "2026-12-02T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "FULL SERVICE Thursday 10am",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut_beard",
+      "startUtc": "2026-12-03T06:00:00.000Z"
+    }
+  },
+  {
+    "text": "line up Friday at 12",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "beard_trim",
+      "startUtc": "2026-12-04T08:00:00.000Z"
+    }
+  },
+  {
+    "text": "can I book a haircut and beard for 5/12 15:00",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut_beard",
+      "startUtc": "2026-12-05T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "6/12 18:30 skin fade",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade",
+      "startUtc": "2026-12-06T14:30:00.000Z"
+    }
+  },
+  {
+    "text": "fade 12/5 15:00",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade",
+      "startUtc": "2027-05-12T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "please can i get a haircuut monday at 1",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-30T09:00:00.000Z"
+    }
+  },
+  {
+    "text": "beardtrim sat 2pm",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "beard_trim",
+      "startUtc": "2026-11-28T10:00:00.000Z"
+    }
+  },
+  {
+    "text": "a skinfode today at 4pm",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade",
+      "startUtc": "2026-11-28T12:00:00.000Z"
+    }
+  },
+  {
+    "text": "beardtrm tmrw at 2pm",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "beard_trim",
+      "startUtc": "2026-11-29T10:00:00.000Z"
+    }
+  },
+  {
+    "text": "fsde saturday at 3pm",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "Saturday 1 haircut",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T09:00:00.000Z"
+    }
+  },
+  {
+    "text": "skinfade on Monday at 8",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade",
+      "startUtc": "2026-11-30T16:00:00.000Z"
+    }
+  },
+  {
+    "text": "beard on Monday at 9",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "beard_trim",
+      "startUtc": "2026-11-30T05:00:00.000Z"
+    }
+  },
+  {
+    "text": "Friday at 11 can I get a fade",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade",
+      "startUtc": "2026-12-04T07:00:00.000Z"
+    }
+  },
+  {
+    "text": "around 3",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "3ish",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "3:30",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T11:30:00.000Z"
+    }
+  },
+  {
+    "text": "noon please",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T08:00:00.000Z"
+    }
+  },
+  {
+    "text": "15:00 for a cut",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-28T11:00:00.000Z"
+    }
+  },
+  {
+    "text": "tomorrow",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut"
+    }
+  },
+  {
+    "text": "is there a haircut available Monday",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut"
+    }
+  },
+  {
+    "text": "can you fit in a full service",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut_beard"
+    }
+  },
+  {
+    "text": "tonight for a fade?",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade"
+    }
+  },
+  {
+    "text": "thanks so much",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "unknown",
+      "serviceId": "haircut"
+    }
+  },
+  {
+    "text": "can't make it for my beard trim",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "cancel",
+      "serviceId": "beard_trim"
+    }
+  },
+  {
+    "text": "cant make it Monday 2pm",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "cancel",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-30T10:00:00.000Z"
+    }
+  },
+  {
+    "text": "I won't make it Tuesday at noon",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "cancel",
+      "serviceId": "haircut",
+      "startUtc": "2026-12-01T08:00:00.000Z"
+    }
+  },
+  {
+    "text": "wont make it",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "cancel",
+      "serviceId": "haircut"
+    }
+  },
+  {
+    "text": "can i get a fade at 4pm",
+    "now": "2026-11-28T20:45:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "skin_fade"
+    }
+  },
+  {
+    "text": "is 5pm available",
+    "now": "2026-11-29T10:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut"
+    }
+  },
+  {
+    "text": "beard trim today at 11am",
+    "now": "2026-11-28T22:00:00Z",
+    "expected": {
+      "intent": "book",
+      "serviceId": "beard_trim",
+      "startUtc": "2026-11-29T07:00:00.000Z"
+    }
+  },
+  {
+    "text": "cut tomorrow at 14:00",
+    "now": "2026-11-28T22:00:00Z",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-30T10:00:00.000Z"
+    }
+  },
+  {
+    "text": "see you later",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "unknown",
+      "serviceId": "haircut"
+    }
+  },
+  {
+    "text": "Monday at 3am haircut",
+    "now": "2026-11-28T09:00:00+04:00",
+    "expected": {
+      "intent": "book",
+      "serviceId": "haircut",
+      "startUtc": "2026-11-29T23:00:00.000Z"
+    }
+  }
+]
