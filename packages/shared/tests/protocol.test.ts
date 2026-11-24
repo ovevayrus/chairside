@@ -85,6 +85,12 @@ it('validates optional root slots, clock times and ISO timestamps', () => {
 })
 
 describe('live channel', () => {
+  it('recognizes hello.ok only before sequenced frames', () => {
+    const hello = { type: 'hello.ok' }
+    expect(ServerMessageSchema.parse(hello)).toEqual(hello)
+    expect(serverMessageSchemaAfter(1).safeParse(hello).success).toBe(false)
+  })
+
   it.each([
     { type: 'state', root, cards: [card] },
     { type: 'card.upsert', card },
@@ -110,6 +116,7 @@ describe('live channel', () => {
       cards: [card],
       seq: 4,
     })
+    if (first.type !== 'state') throw new Error('expected a state frame')
     const nextFrame = serverMessageSchemaAfter(first.seq)
     const upsert = { type: 'card.upsert', card }
     for (const seq of [3, 4]) {

@@ -4,6 +4,10 @@ import { DatabaseSync } from 'node:sqlite'
 // The workspace's tsc build leaves SQL assets in src/db.
 const migrations = [
   { version: 1, file: new URL('../../src/db/schema.sql', import.meta.url) },
+  {
+    version: 2,
+    file: new URL('../../src/db/002-request-messages.sql', import.meta.url),
+  },
 ]
 
 export function runMigrations(db: DatabaseSync): void {

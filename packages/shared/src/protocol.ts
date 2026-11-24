@@ -8,6 +8,7 @@ const version = z.int().nonnegative()
 const seq = z.int().nonnegative()
 const receipt = z.string().max(80)
 const timestamp = z.iso.datetime({ offset: true })
+export const DeviceTokenSchema = z.string().min(16).max(256)
 
 export const CardActionSchema = z.object({
   id: actionId,
@@ -39,7 +40,7 @@ export const RootStateSchema = z.object({
   mode: z.enum(['live', 'test']),
 })
 
-export const ServerMessageSchema = z.discriminatedUnion('type', [
+const SequencedMessageSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('state'),
     seq,
@@ -62,11 +63,16 @@ export const ServerMessageSchema = z.discriminatedUnion('type', [
   }),
 ])
 
+export const ServerMessageSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('hello.ok') }),
+  ...SequencedMessageSchema.options,
+])
+
 // Validate a subsequent frame against the last sequence seen on this stream.
 export function serverMessageSchemaAfter(
   previousSeq: number,
-): typeof ServerMessageSchema {
-  return ServerMessageSchema.refine((frame) => frame.seq > previousSeq, {
+): typeof SequencedMessageSchema {
+  return SequencedMessageSchema.refine((frame) => frame.seq > previousSeq, {
     path: ['seq'],
     message: 'Sequence must increase',
   })
@@ -75,7 +81,7 @@ export function serverMessageSchemaAfter(
 export const ClientMessageSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('hello'),
-    token: z.string().min(16).max(256),
+    token: DeviceTokenSchema,
     appVersion: z.string().max(32),
   }),
   z.object({ type: z.literal('ping') }),
