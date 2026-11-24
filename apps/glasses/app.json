@@ -1,0 +1,16 @@
+{
+  "package_id": "com.chairsideapp.glasses",
+  "edition": "202601",
+  "name": "Chairside",
+  "version": "0.1.0",
+  "min_sdk_version": "0.0.16",
+  "entrypoint": "index.html",
+  "permissions": [
+    {
+      "name": "network",
+      "desc": "Connects only to your shop's Chairside server, to show new booking requests and your next appointments on the glasses and to send the replies and bookings you approve with a tap.",
+      "whitelist": ["http://localhost:8787"]
+    }
+  ],
+  "supported_languages": ["en"]
+}
