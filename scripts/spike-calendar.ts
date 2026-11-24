@@ -1,5 +1,5 @@
 // Live spike S2: run with `npx tsx scripts/spike-calendar.ts` using real Google credentials.
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { DateTime } from 'luxon'
@@ -90,9 +90,24 @@ const lines = [
   ),
   '',
 ]
+/**
+ * Inserts the block at the end of the "## S2 Calendar" section (adds the section if missing),
+ * so it never lands inside the S3 section that the simulator runner rewrites.
+ */
+function insertUnderS2(doc: string, block: string): string {
+  const heading = /^## S2 Calendar\b.*$/m.exec(doc)
+  if (!heading) return `${doc.trimEnd()}\n\n## S2 Calendar\n\n${block}\n`
+  const bodyStart = heading.index + heading[0].length
+  const next = doc.slice(bodyStart).search(/^## /m)
+  const end = next === -1 ? doc.length : bodyStart + next
+  const before = doc.slice(0, end).trimEnd()
+  const after = doc.slice(end)
+  return `${before}\n\n${block}\n${after ? `\n${after}` : ''}`
+}
+
 const spikes = resolve(root, 'docs/SPIKES.md')
 mkdirSync(dirname(spikes), { recursive: true })
-if (!existsSync(spikes)) writeFileSync(spikes, '# Spikes\n')
-appendFileSync(spikes, lines.join('\n'))
+const doc = existsSync(spikes) ? readFileSync(spikes, 'utf8') : '# Spikes\n'
+writeFileSync(spikes, insertUnderS2(doc, lines.join('\n').trim()))
 console.log(lines.join('\n'))
 process.exit(allPass ? 0 : 1)

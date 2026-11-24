@@ -6,9 +6,75 @@ Live checks that de-risk the build. Each section records what was run, when, and
 
 Pending: needs the bot token, the owner's Telegram Business connection and a consenting customer account. Run `npx tsx scripts/spike-telegram.ts` and follow the prompts; results are appended below.
 
+### S1 Telegram (live run) 2026-11-24T18:47:42.358Z
+
+`npx tsx scripts/spike-telegram.ts` as @chairsidehack_bot, 2026-11-24T18:47:42.358Z to 2026-11-24T18:52:42.723Z. Ids, rights and ISO times only; no message text, no token.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| (a) business_connection enabled with can_reply | PASS | business_connection update 45008735 at 2026-11-24T18:47:42.797Z; getBusinessConnection at 2026-11-24T18:52:42.628Z; is_enabled=true; can_reply=true; rights sent by Telegram: can_read_messages, can_reply |
+| (b) customer DM arrives as business_message | FAIL | no incoming business_message during the run |
+| (c) reply in the customer thread via the connection | FAIL | not attempted: needs (a) and (b) |
+| (d) inline callback_data button -> callback_query | FAIL | not attempted: needs (a) and (b) |
+| (e) readBusinessMessage on the customer's message | FAIL | not attempted: needs (a) and (b) |
+| (f) deleteBusinessMessages on the spike's own message | FAIL | not attempted: no button message from (d) |
+
+- Suggested `CALLBACKS_SUPPORTED=false` (true only when (d) passed).
+- Recommended `TELEGRAM_MODE`: undecided. (a)-(c) did not all pass, so stop and ask the user before any switch to `bot` (plan rule 12).
+
+### S1 Telegram (live run) 2026-11-24T18:53:44.178Z
+
+`npx tsx scripts/spike-telegram.ts` as @chairsidehack_bot, 2026-11-24T18:53:44.178Z to 2026-11-24T18:54:25.301Z. Ids, rights and ISO times only; no message text, no token.
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| (a) business_connection enabled with can_reply | PASS | no business_connection update during the run; getBusinessConnection at 2026-11-24T18:54:19.538Z; is_enabled=true; can_reply=true; rights sent by Telegram: can_read_messages, can_reply |
+| (b) customer DM arrives as business_message | PASS | update 45008740, message 324990, sent 2026-11-24T18:54:19.000Z, received 2026-11-24T18:54:19.331Z |
+| (c) reply in the customer thread via the connection | PASS | message 324991 sent 2026-11-24T18:54:19.828Z |
+| (d) inline callback_data button -> callback_query | PASS | button message 324992; callback at 2026-11-24T18:54:21.545Z from the customer on message 324992; connection id on callback: yes; answered |
+| (e) readBusinessMessage on the customer's message | PASS | message 324990 at 2026-11-24T18:54:22.201Z |
+| (f) deleteBusinessMessages on the spike's own message | SKIP | the connection lacks a delete right |
+
+- Telegram echoed the reply 324991 as a business_message with sender_business_bot: no.
+- Suggested `CALLBACKS_SUPPORTED=true` (true only when (d) passed).
+- Recommended `TELEGRAM_MODE=business`: (a)-(c) passed.
+
 ## S2 Calendar
 
-Pending: needs the service-account JSON and the shared calendar id. Run `npx tsx scripts/spike-calendar.ts`; results are appended below.
+Live runs below, newest last. The first run failed closed because the calendar was not yet shared with the service account; the second hit a transient notFound on free/busy seconds after sharing; the third passed.
+
+### S2 Calendar (live run) 2026-11-24
+
+Run at 2026-11-24T18:46:47.475Z. Result: FAIL.
+Event id: j8gsefaoefkci31ii82pma2i9m
+Slot: 2026-11-26T06:00:00.000Z to 2026-11-26T06:45:00.000Z
+
+- FAIL freeBusy ok
+- FAIL insert with deterministic id (Not Found)
+- FAIL same insert again returns already_ours (Not Found)
+- PASS delete ok
+
+### S2 Calendar (live run) 2026-11-24
+
+Run at 2026-11-24T18:50:30.322Z. Result: FAIL.
+Event id: ita7gjb6e5671v5v8ofmoidant
+Slot: 2026-11-26T06:00:00.000Z to 2026-11-26T06:45:00.000Z
+
+- FAIL freeBusy ok
+- PASS insert with deterministic id
+- PASS same insert again returns already_ours
+- PASS delete ok
+
+### S2 Calendar (live run) 2026-11-24
+
+Run at 2026-11-24T18:50:57.902Z. Result: PASS.
+Event id: u6fco9nql5j1l4va8fje9f4m3h
+Slot: 2026-11-26T06:00:00.000Z to 2026-11-26T06:45:00.000Z
+
+- PASS freeBusy ok (busy intervals: 0)
+- PASS insert with deterministic id
+- PASS same insert again returns already_ours
+- PASS delete ok
 
 ## S3 Simulator (automated run 2026-11-24T13:32:43.946Z)
 

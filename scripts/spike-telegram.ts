@@ -150,7 +150,8 @@ async function main(): Promise<number> {
   console.log(
     [
       'Chairside spike S1 (Telegram Business). Runs up to 5 minutes; Ctrl+C finishes early.',
-      `1. Owner account: Telegram > Settings > Telegram Business > Chatbots: connect this bot and allow it to reply.`,
+      `0. @BotFather: /mybots > this bot > Bot Settings > Secretary Mode (formerly "Business Mode"): turn it on.`,
+      `1. Owner account: connect this bot to the account (Settings > Telegram Business > Chatbots, or the newer chat-automation entry) and allow it to reply.`,
       "2. Now send 'hi' from the customer account to the owner account. Waiting...",
     ].join('\n'),
   )
