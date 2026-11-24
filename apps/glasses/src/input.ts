@@ -96,7 +96,9 @@ export function logSharedGesture(input: GlassesInput): boolean {
 }
 
 /** Root-page double-tap: the system exit dialog (Even Hub QA rule). */
-export async function requestExitDialog(bridge: EvenAppBridge): Promise<void> {
+export async function requestExitDialog(
+  bridge: Pick<EvenAppBridge, 'shutDownPageContainer'>,
+): Promise<void> {
   console.log('[chairside] exit dialog requested')
   try {
     if (!(await bridge.shutDownPageContainer(1))) {

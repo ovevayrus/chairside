@@ -12,6 +12,7 @@ import { createRuntime } from './http/runtime.js'
 import { randomBytes } from 'node:crypto'
 import { PairingService } from './devices/pairing.js'
 import { createPairCommandHandler } from './devices/command.js'
+import { mountDevRoutes } from './dev/routes.js'
 import { createDeviceAuthenticator } from './live/auth.js'
 import { loadShopConfig } from './shop/config.js'
 import { BusinessTelegramAdapter } from './telegram/business.js'
@@ -54,6 +55,17 @@ function startRuntime() {
   if (!['business', 'bot'].includes(telegramMode))
     throw new Error('Invalid TELEGRAM_MODE')
   const business = telegramMode === 'business'
+  // TEST MODE (DEV_INJECT=1) never talks to Telegram or Google, even when
+  // credentials are configured: everything goes to in-memory fakes.
+  if (testMode) {
+    const ignored = ['TELEGRAM_BOT_TOKEN', 'GOOGLE_CALENDAR_ID'].filter(
+      (name) => process.env[name],
+    )
+    logger.warn(
+      { ignored },
+      'TEST MODE: fake Telegram and fake calendar; dev endpoints on /dev/*',
+    )
+  }
   const calendar = testMode ? new FakeCalendar() : googleCalendarFromEnv()
   const Adapter = business ? BusinessTelegramAdapter : ShopBotTelegramAdapter
   const telegram = testMode
@@ -103,7 +115,19 @@ function startRuntime() {
       log: (message, codeSuffix) => logger.info({ codeSuffix }, message),
     }),
   )
-  return { ...runtime, telegram, pairing }
+  return {
+    ...runtime,
+    telegram,
+    calendar,
+    pairing,
+    db,
+    shop,
+    business,
+    ownerUserId:
+      Number.isSafeInteger(ownerUserId) && ownerUserId > 0
+        ? ownerUserId
+        : undefined,
+  }
 }
 
 const runtime = startRuntime()
@@ -115,20 +139,39 @@ const authenticate = runtime
       testMode && dev ? shopId : undefined,
     )
   : undefined
+const app = createApp({
+  logger,
+  hub: runtime?.hub,
+  authenticate,
+  pairing: runtime?.pairing,
+  execute:
+    runtime &&
+    ((id, input) => {
+      if (id !== shopId) throw new Error('Shop mismatch')
+      return runtime.execute(input)
+    }),
+})
+// /dev/* exists only in TEST MODE (DEV_INJECT=1, not production) with fakes.
+if (
+  runtime &&
+  runtime.telegram instanceof FakeTelegramAdapter &&
+  runtime.calendar instanceof FakeCalendar
+) {
+  mountDevRoutes(app, {
+    db: runtime.db,
+    shopId,
+    shop: runtime.shop,
+    business: runtime.business,
+    ownerUserId: runtime.ownerUserId,
+    telegram: runtime.telegram,
+    calendar: runtime.calendar,
+    pairing: runtime.pairing,
+    hub: runtime.hub,
+  })
+}
 const server = serve(
   {
-    fetch: createApp({
-      logger,
-      hub: runtime?.hub,
-      authenticate,
-      pairing: runtime?.pairing,
-      execute:
-        runtime &&
-        ((id, input) => {
-          if (id !== shopId) throw new Error('Shop mismatch')
-          return runtime.execute(input)
-        }),
-    }).fetch,
+    fetch: app.fetch,
     port,
   },
   (info) => {

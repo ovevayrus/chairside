@@ -15,12 +15,21 @@ export function start(name, command, args, options = {}) {
     stdio: ['ignore', 'pipe', 'pipe'],
     ...options,
   })
-  // The last 200 output lines, kept in memory only (never written to disk).
-  const proc = { name, child, lines: [], error: undefined, stopping: false }
+  // The last 200 output lines, kept in memory only (never written to disk);
+  // `total` counts every line ever seen, for linesSince().
+  const proc = {
+    name,
+    child,
+    lines: [],
+    total: 0,
+    error: undefined,
+    stopping: false,
+  }
   const keep = (chunk) => {
     for (const line of String(chunk).split(/\r?\n/)) {
       if (!line.trim()) continue
       proc.lines.push(line)
+      proc.total += 1
       if (proc.lines.length > 200) proc.lines.shift()
     }
   }
@@ -32,6 +41,11 @@ export function start(name, command, args, options = {}) {
   })
   tracked.push(proc)
   return proc
+}
+
+/** Output lines printed after `proc.total` was `mark` (within the 200 kept). */
+export function linesSince(proc, mark) {
+  return proc.lines.slice(Math.max(0, proc.lines.length - (proc.total - mark)))
 }
 
 function exited(proc) {
