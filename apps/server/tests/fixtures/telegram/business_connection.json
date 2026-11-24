@@ -1,0 +1,22 @@
+{
+  "update_id": 731400001,
+  "business_connection": {
+    "id": "Kx3mQ7vRzEwSAAAAqP9dLb2YtNc",
+    "user": {
+      "id": 801234567,
+      "is_bot": false,
+      "first_name": "Karim",
+      "username": "karim_barber",
+      "language_code": "en",
+      "is_premium": true
+    },
+    "user_chat_id": 801234567,
+    "date": 1795161600,
+    "rights": {
+      "can_reply": true,
+      "can_read_messages": true,
+      "can_delete_outgoing_messages": true
+    },
+    "is_enabled": true
+  }
+}

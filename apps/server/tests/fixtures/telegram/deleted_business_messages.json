@@ -1,0 +1,12 @@
+{
+  "update_id": 731400008,
+  "deleted_business_messages": {
+    "business_connection_id": "Kx3mQ7vRzEwSAAAAqP9dLb2YtNc",
+    "chat": {
+      "id": 612345678,
+      "first_name": "Anna",
+      "type": "private"
+    },
+    "message_ids": [5101]
+  }
+}

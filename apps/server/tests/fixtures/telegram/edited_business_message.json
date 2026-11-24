@@ -1,0 +1,21 @@
+{
+  "update_id": 731400004,
+  "edited_business_message": {
+    "message_id": 5101,
+    "from": {
+      "id": 612345678,
+      "is_bot": false,
+      "first_name": "Anna",
+      "language_code": "en"
+    },
+    "chat": {
+      "id": 612345678,
+      "first_name": "Anna",
+      "type": "private"
+    },
+    "date": 1795856400,
+    "edit_date": 1795856430,
+    "business_connection_id": "Kx3mQ7vRzEwSAAAAqP9dLb2YtNc",
+    "text": "Can I get a skin fade Saturday 5 Dec at 4pm?"
+  }
+}

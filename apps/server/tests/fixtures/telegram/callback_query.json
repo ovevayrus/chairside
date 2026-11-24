@@ -1,0 +1,44 @@
+{
+  "update_id": 731400007,
+  "callback_query": {
+    "id": "3480012345678901234",
+    "from": {
+      "id": 612345678,
+      "is_bot": false,
+      "first_name": "Anna",
+      "language_code": "en"
+    },
+    "message": {
+      "message_id": 5103,
+      "from": {
+        "id": 801234567,
+        "is_bot": false,
+        "first_name": "Karim",
+        "username": "karim_barber",
+        "language_code": "en",
+        "is_premium": true
+      },
+      "chat": {
+        "id": 612345678,
+        "first_name": "Anna",
+        "type": "private"
+      },
+      "date": 1795856520,
+      "business_connection_id": "Kx3mQ7vRzEwSAAAAqP9dLb2YtNc",
+      "sender_business_bot": {
+        "id": 7712345678,
+        "is_bot": true,
+        "first_name": "Chairside",
+        "username": "chairside_demo_bot"
+      },
+      "text": "Hi Anna, Saturday 5 Dec, 16:00 is free. Shall I book your skin fade?",
+      "reply_markup": {
+        "inline_keyboard": [
+          [{ "text": "Book 16:00", "callback_data": "offer:o-1" }]
+        ]
+      }
+    },
+    "chat_instance": "-8123456789012345678",
+    "data": "offer:o-1"
+  }
+}

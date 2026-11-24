@@ -1,0 +1,22 @@
+{
+  "update_id": 731400005,
+  "business_message": {
+    "message_id": 5102,
+    "from": {
+      "id": 801234567,
+      "is_bot": false,
+      "first_name": "Karim",
+      "username": "karim_barber",
+      "language_code": "en",
+      "is_premium": true
+    },
+    "chat": {
+      "id": 612345678,
+      "first_name": "Anna",
+      "type": "private"
+    },
+    "date": 1795856460,
+    "business_connection_id": "Kx3mQ7vRzEwSAAAAqP9dLb2YtNc",
+    "text": "Sure, 4pm Saturday works. See you then!"
+  }
+}
