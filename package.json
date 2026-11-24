@@ -10,19 +10,21 @@
     "apps/*"
   ],
   "scripts": {
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && tsc --noEmit -p scripts/tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
     "build": "npm run build -w @chairside/shared && npm run build -w @chairside/server && npm run build -w @chairside/glasses && npm run check:secrets",
-    "e2e": "node scripts/not-implemented.mjs e2e",
+    "e2e": "node e2e/run.mjs",
     "pack": "node scripts/not-implemented.mjs pack",
     "check:secrets": "node scripts/check-secrets.mjs",
     "demo:local": "node scripts/not-implemented.mjs demo:local",
-    "demo:seed": "node scripts/not-implemented.mjs demo:seed",
-    "demo:block": "node scripts/not-implemented.mjs demo:block",
-    "demo:reset": "node scripts/not-implemented.mjs demo:reset",
-    "smoke:live": "node scripts/not-implemented.mjs smoke:live"
+    "demo:seed": "tsx scripts/demo-seed.ts",
+    "demo:block": "tsx scripts/demo-block.ts",
+    "demo:reset": "tsx scripts/demo-reset.ts",
+    "smoke:live": "node scripts/not-implemented.mjs smoke:live",
+    "spike:telegram": "tsx scripts/spike-telegram.ts",
+    "spike:calendar": "tsx scripts/spike-calendar.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

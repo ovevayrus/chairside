@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": [
+    "demo-*.ts",
+    "spike-*.ts",
+    "lib/**/*.ts",
+    "../apps/server/src/telegram/dom-shim.d.ts"
+  ]
+}
