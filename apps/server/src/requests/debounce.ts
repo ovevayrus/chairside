@@ -6,6 +6,8 @@ export interface BatchInfo {
   firstName: string
   lastCustomerMsgAt: string
   requestId?: string
+  /** The offer open when the batch's first message arrived: only it can be accepted. */
+  offerId?: string
   updateId: number
 }
 
@@ -40,7 +42,7 @@ export class ChatDebounce {
     return this.pending.get(key)
   }
 
-  push(event: ChatMessageEvent, requestId?: string): void {
+  push(event: ChatMessageEvent, requestId?: string, offerId?: string): void {
     const connectionId = event.connectionId ?? ''
     const key = chatKey(connectionId, event.chatId)
     const previous = this.pending.get(key)
@@ -56,6 +58,13 @@ export class ChatDebounce {
       lastCustomerMsgAt:
         priorDate && priorDate > event.dateIso ? priorDate : event.dateIso,
       requestId: requestId ?? previous?.info.requestId,
+      // An edit never accepts an offer, and a batch begun before the offer can't either.
+      offerId:
+        event.type === 'edited'
+          ? undefined
+          : previous
+            ? previous.info.offerId
+            : offerId,
       updateId: event.updateId,
     }
     const timer = setTimeout(

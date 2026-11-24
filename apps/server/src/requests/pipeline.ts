@@ -1,5 +1,13 @@
 import { DateTime } from 'luxon'
+import { publish, type ActionContext } from '../actions/context.js'
+import {
+  acceptOffer,
+  callbackOffer,
+  isAcceptance,
+  openOffer,
+} from '../actions/offers.js'
 import type { CalendarAdapter } from '../calendar/adapter.js'
+import { endActiveOffers, setOfferStatus, type OfferRow } from '../db/offers.js'
 import type { RequestRow, RequestStore } from '../db/requests.js'
 import type { LiveHub } from '../live/hub.js'
 import { parseRequest, type ParseResult } from '../parse/parser.js'
@@ -9,6 +17,7 @@ import {
   type TelegramAdapter,
 } from '../telegram/adapter.js'
 import type {
+  CallbackEvent,
   ChatMessageEvent,
   ConnectionEvent,
   DeletedEvent,
@@ -27,11 +36,23 @@ export interface PipelineOptions {
   ownerUserId?: number
   getConnection?: (connectionId: string) => Promise<Connection>
   debounceMs?: number
+  /** CALLBACKS_SUPPORTED: offers carry a `Book <time>` button. */
+  callbacksSupported?: boolean
+  checkpoint?: ActionContext['checkpoint']
 }
 
 export function createRequestPipeline(options: PipelineOptions) {
   const { store, calendar, telegram, hub } = options
   const { shopId } = store
+  // Offer acceptance books through the executor's guarantees.
+  const ctx: ActionContext = {
+    store,
+    calendar,
+    telegram,
+    hub,
+    callbacksSupported: options.callbacksSupported ?? false,
+    checkpoint: options.checkpoint,
+  }
   let closed = false
 
   function upsert(row: RequestRow) {
@@ -64,6 +85,19 @@ export function createRequestPipeline(options: PipelineOptions) {
     await hub.broadcastState(shopId)
   }
 
+  async function accept(info: BatchInfo, ids: number[], offer: OfferRow) {
+    // A pending request this batch began to update stays as it was.
+    if (info.requestId) store.cancelUpdate(info.requestId)
+    const outcome = await acceptOffer(ctx, offer, {
+      connectionId: info.connectionId,
+      messageIds: ids,
+      dateIso: info.lastCustomerMsgAt,
+    })
+    if (outcome?.changed)
+      await publish(ctx, outcome.requestId, outcome.response)
+    else await hub.broadcastState(shopId)
+  }
+
   const debounce = new ChatDebounce(
     options.debounceMs ?? 2_500,
     (work, updateId) => {
@@ -73,6 +107,14 @@ export function createRequestPipeline(options: PipelineOptions) {
     },
     // Parse synchronously. Only structured values cross the calendar await.
     (info, ids, text) => {
+      // Only the offer open before this batch began can be accepted, and only
+      // by a whole whitelisted reply. Any other reply ends the offer.
+      const offer = info.offerId ? openOffer(ctx, info.chatId) : undefined
+      if (offer && offer.id === info.offerId) {
+        if (isAcceptance(text)) return accept(info, ids, offer)
+        if (offer.status === 'active')
+          setOfferStatus(store, offer.id, 'answered')
+      }
       const now = store.now()
       const parsed = parseRequest(text, now, store.shop)
       const requestedDayUtc =
@@ -166,10 +208,14 @@ export function createRequestPipeline(options: PipelineOptions) {
       source?.id ??
       visible(event.chatId, connectionId).find(editable)?.id
     if (id && !batch) store.beginUpdate(id)
-    debounce.push(event, id)
+    const offerId =
+      event.type === 'message' && !batch
+        ? openOffer(ctx, event.chatId)?.id
+        : undefined
+    debounce.push(event, id, offerId)
   }
 
-  async function handle(event: TelegramEvent) {
+  async function handle(event: Exclude<TelegramEvent, CallbackEvent>) {
     if (closed) return
     if (event.type === 'connection') {
       if (!store.business || !owns(event) || !store.claim(event.updateId))
@@ -179,13 +225,18 @@ export function createRequestPipeline(options: PipelineOptions) {
       await hub.broadcastState(shopId)
       return
     }
-    if (event.type === 'callback') return
     const connectionId = event.connectionId ?? ''
     if (!(await matches(connectionId)) || !store.claim(event.updateId)) return
     const key = chatKey(connectionId, event.chatId)
-    if (event.type === 'deleted') return deleted(event, key)
+    if (event.type === 'deleted') {
+      // A deleted offer message can no longer be accepted.
+      endActiveOffers(store, event.chatId, 'withdrawn', event.messageIds)
+      return deleted(event, key)
+    }
     if (event.direction === 'outgoing_bot' || !event.text.trim()) return
     if (event.direction === 'outgoing_owner') {
+      // The owner wrote by hand: a later "yes" may answer that, not the offer.
+      endActiveOffers(store, event.chatId, 'superseded')
       const ids = new Set(
         visible(event.chatId, connectionId).map((row) => row.id),
       )
@@ -199,8 +250,38 @@ export function createRequestPipeline(options: PipelineOptions) {
     incoming(event, connectionId, key)
   }
 
+  /** Section 5.6 (a). Every press is answered, outside the lock; only the right one books. */
+  async function callback(event: CallbackEvent) {
+    let accepted = false
+    try {
+      accepted = await store.withLock(async () => {
+        if (closed || !ctx.callbacksSupported) return false
+        const connectionId = event.connectionId ?? ''
+        if (!(await matches(connectionId)) || !store.claim(event.updateId))
+          return false
+        const offer = callbackOffer(ctx, event)
+        const outcome =
+          offer &&
+          (await acceptOffer(ctx, offer, { connectionId, messageIds: [] }))
+        if (!outcome) return false
+        if (outcome.changed)
+          await publish(ctx, outcome.requestId, outcome.response)
+        return true
+      })
+    } finally {
+      await telegram
+        .answerCallback(
+          event.callbackQueryId,
+          accepted ? undefined : 'This offer is not available',
+        )
+        .catch(() => {})
+    }
+  }
+
   const unsubscribe = telegram.onEvent((event) =>
-    store.withLock(() => handle(event)),
+    event.type === 'callback'
+      ? callback(event)
+      : store.withLock(() => handle(event)),
   )
   return {
     close() {

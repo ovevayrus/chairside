@@ -9,6 +9,7 @@ import {
   type ActionContext,
   type ActionRow,
 } from './context.js'
+import { reopenAcceptance } from './offers.js'
 import { recoveryCard, unknownReply } from './send.js'
 
 function abandonReceived(
@@ -109,13 +110,16 @@ export function reconcile(ctx: ActionContext): Promise<void> {
       .all(store.shopId) as unknown as ActionRow[]
     for (const action of interrupted) {
       const row = store.get(action.request_id)!
-      if (action.state === 'received') {
-        abandonReceived(ctx, action, row)
-        continue
-      }
       const p = store
         .proposals({ ...row, version: action.version })
         .find((p) => p.id === action.action_id)
+      if (action.state === 'received') {
+        // An acceptance has no visible card to restore: show the owner its slot.
+        if (p && action.idempotency_key.startsWith('offer:'))
+          await reopenAcceptance(ctx, action, row, p)
+        else abandonReceived(ctx, action, row)
+        continue
+      }
       if (!p) throw new Error('Missing persisted action proposal')
       if (action.state === 'send_started') {
         unknownReply(ctx, action, row, p)

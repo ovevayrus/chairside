@@ -1,8 +1,12 @@
-import type { ActionResponse, Card } from '@chairside/shared'
+import {
+  ActionResponseSchema,
+  type ActionResponse,
+  type Card,
+} from '@chairside/shared'
 import type { CalendarAdapter } from '../calendar/adapter.js'
 import type { RequestRow, RequestStore } from '../db/requests.js'
 import type { LiveHub } from '../live/hub.js'
-import { planProposals, type Proposal } from '../requests/cards.js'
+import { displayText, planProposals, type Proposal } from '../requests/cards.js'
 import type { TelegramAdapter } from '../telegram/adapter.js'
 
 export interface ActionContext {
@@ -24,6 +28,33 @@ export interface ActionRow {
   telegram_message_id: number | null
   result_json: string | null
   state: string
+}
+
+/** An existing action row answers with its stored outcome and runs nothing. */
+export function replay(row: ActionRow): ActionResponse {
+  if (row.result_json)
+    return ActionResponseSchema.parse(JSON.parse(row.result_json))
+  return { status: 'error', receipt: 'Action in progress · check status' }
+}
+
+/** Pushes an action's outcome to the shop's devices. */
+export async function publish(
+  ctx: ActionContext,
+  requestId: string,
+  response: ActionResponse,
+): Promise<void> {
+  const { store, hub } = ctx
+  if (response.card)
+    hub.broadcast(store.shopId, { type: 'card.upsert', card: response.card })
+  else if (!store.pending().some((r) => r.id === requestId))
+    hub.broadcast(store.shopId, { type: 'card.remove', requestId })
+  if (response.receipt)
+    hub.broadcast(store.shopId, {
+      type: 'receipt',
+      requestId,
+      text: response.receipt,
+    })
+  await hub.broadcastState(store.shopId)
 }
 
 export function finish(
@@ -81,12 +112,22 @@ export async function taken(
     store.now(),
     [{ startUtc, endUtc }],
   )
+  // A customer said yes to a slot that has gone: the card says so and offers the next one.
+  const accepted = p.kind === 'offer_accepted'
+  const name = displayText(row.customer_first_name, 24) || 'Customer'
   return store.transaction(() => {
-    const card = replaceCard(ctx, row, 'pending', proposals)
+    const card = replaceCard(
+      ctx,
+      row,
+      accepted ? 'slot_taken_accepted' : 'pending',
+      proposals,
+    )
     return finish(ctx, action, {
       status: 'slot_taken',
       card,
-      receipt: 'Slot just taken',
+      receipt: accepted
+        ? `${name} said yes · slot just taken`
+        : 'Slot just taken',
     })
   })
 }

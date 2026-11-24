@@ -1,6 +1,12 @@
 import type { ActionResponse, Card } from '@chairside/shared'
 import { DateTime } from 'luxon'
 import { sameInterval } from '../calendar/adapter.js'
+import {
+  activateOffer,
+  endActiveOffers,
+  insertOffer,
+  setOfferStatus,
+} from '../db/offers.js'
 import type { RequestRow } from '../db/requests.js'
 import { displayText, proposal, type Proposal } from '../requests/cards.js'
 import { DEFAULT_TIMEOUT_MS, TelegramApiError } from '../telegram/adapter.js'
@@ -28,6 +34,13 @@ function replyKind(p: Proposal) {
 function isConfirmation(p: Proposal) {
   const kind = replyKind(p)
   return kind === 'book' || kind === 'offer_accepted'
+}
+
+/** The slot an offer reply puts on the table (offers.ts accepts it later). */
+function offeredSlot(p: Proposal) {
+  return replyKind(p) === 'offer' && p.slot_start_utc && p.slot_end_utc
+    ? { startUtc: p.slot_start_utc, endUtc: p.slot_end_utc }
+    : undefined
 }
 
 function updateBookingReply(
@@ -76,6 +89,8 @@ export function unknownReply(
 ): ActionResponse {
   return ctx.store.transaction(() => {
     updateBookingReply(ctx, row, p, 'reply_unknown')
+    // The customer may never have seen this offer, so a "yes" can't accept it.
+    if (offeredSlot(p)) setOfferStatus(ctx.store, action.id, 'unknown')
     const booked = isConfirmation(p)
     const card = replaceCard(ctx, row, 'reply_unknown', [
       proposal(booked ? 'unknown_book' : 'unknown_reply', 'Not now'),
@@ -207,14 +222,40 @@ export async function sendReply(
     connectionId: store.business ? (connection.id ?? undefined) : undefined,
     timeoutMs: DEFAULT_TIMEOUT_MS,
   }
-  store.db
-    .prepare("UPDATE actions SET state='send_started',updated_at=? WHERE id=?")
-    .run(store.now().toISOString(), action.id)
+  const offer = offeredSlot(p)
+  store.transaction(() => {
+    // Any newer message from the shop ends the chat's open offer: a later
+    // "yes" could answer that message instead.
+    endActiveOffers(store, row.chat_id, 'superseded')
+    if (offer)
+      insertOffer(store, {
+        id: action.id,
+        requestId: row.id,
+        chatId: row.chat_id,
+        slot: offer,
+      })
+    store.db
+      .prepare(
+        "UPDATE actions SET state='send_started',updated_at=? WHERE id=?",
+      )
+      .run(store.now().toISOString(), action.id)
+  })
   ctx.checkpoint?.('after_send_started')
 
   let messageId: number
   try {
-    const sent = await telegram.sendText(row.chat_id, text, opts)
+    const sent =
+      offer && ctx.callbacksSupported
+        ? await telegram.sendWithButton(
+            row.chat_id,
+            text,
+            {
+              text: `Book ${slotTime(ctx, p).toFormat('HH:mm')}`,
+              callbackData: `offer:${action.id}`,
+            },
+            opts,
+          )
+        : await telegram.sendText(row.chat_id, text, opts)
     messageId = sent.messageId
   } catch (error) {
     if (
@@ -223,6 +264,7 @@ export async function sendReply(
       error.code < 500
     ) {
       return store.transaction(() => {
+        if (offer) setOfferStatus(store, action.id, 'failed')
         updateBookingReply(ctx, row, p, 'send_failed')
         return finish(ctx, action, {
           status: 'send_failed',
@@ -240,6 +282,7 @@ export async function sendReply(
     store.db
       .prepare('UPDATE actions SET telegram_message_id=? WHERE id=?')
       .run(messageId, action.id)
+    if (offer) activateOffer(store, action.id, messageId)
     updateBookingReply(ctx, row, p, 'sent')
     store.close(row.id, 'handled')
     return finish(

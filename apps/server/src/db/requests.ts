@@ -283,6 +283,36 @@ export class RequestStore {
       .run(this.now().toISOString(), this.shopId, id)
   }
 
+  /** The batch did not update this request after all (it accepted an offer). */
+  cancelUpdate(id: string) {
+    this.db
+      .prepare(
+        "UPDATE requests SET status='pending',updated_at=? WHERE shop_id=? AND id=? AND status='updating'",
+      )
+      .run(this.now().toISOString(), this.shopId, id)
+  }
+
+  /** Records a later customer message for this request: ids and time only. */
+  addMessages(
+    row: RequestRow,
+    connectionId: string,
+    messageIds: number[],
+    dateIso: string,
+  ) {
+    this.transaction(() => {
+      this.db
+        .prepare(
+          'UPDATE requests SET last_customer_msg_at=max(last_customer_msg_at,?),updated_at=? WHERE shop_id=? AND id=?',
+        )
+        .run(dateIso, this.now().toISOString(), this.shopId, row.id)
+      const message = this.db.prepare(
+        'INSERT OR IGNORE INTO request_messages VALUES (?,?,?,?)',
+      )
+      for (const messageId of messageIds)
+        message.run(row.id, connectionId, row.chat_id, messageId)
+    })
+  }
+
   replyBlock(row: RequestRow): 'rights' | 'window' | undefined {
     if (!this.business) return
     const c = this.connection()

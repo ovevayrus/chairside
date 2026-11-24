@@ -41,6 +41,8 @@ export async function bookingFixture(
   options: {
     persistent?: boolean
     checkpoint?: RuntimeOptions['checkpoint']
+    callbacksSupported?: boolean
+    debounceMs?: number
   } = {},
 ) {
   let time = Date.parse('2026-12-03T08:00:00.000Z')
@@ -61,8 +63,9 @@ export async function bookingFixture(
       telegram,
       calendar,
       mode: 'test',
-      debounceMs: 0,
+      debounceMs: options.debounceMs ?? 0,
       now: () => new Date(time),
+      callbacksSupported: options.callbacksSupported,
       checkpoint,
     })
   let runtime = start(options.checkpoint)

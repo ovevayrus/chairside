@@ -1,47 +1,23 @@
 import { randomUUID } from 'node:crypto'
-import {
-  ActionResponseSchema,
-  type ActionRequest,
-  type ActionResponse,
-} from '@chairside/shared'
+import type { ActionRequest, ActionResponse } from '@chairside/shared'
 import { proposal } from '../requests/cards.js'
 import { reserve } from './booking.js'
-import { finish, type ActionContext, type ActionRow } from './context.js'
+import {
+  finish,
+  publish,
+  replay,
+  type ActionContext,
+  type ActionRow,
+} from './context.js'
 import { sendReply } from './send.js'
-
-function replay(row: ActionRow): ActionResponse {
-  if (row.result_json)
-    return ActionResponseSchema.parse(JSON.parse(row.result_json))
-  return { status: 'error', receipt: 'Action in progress · check status' }
-}
 
 export class ActionExecutor {
   constructor(private readonly ctx: ActionContext) {}
 
   async execute(input: ActionRequest): Promise<ActionResponse> {
-    const { store, hub } = this.ctx
-    const outcome = await store.withLock(() => this.run(input))
-    if (outcome.changed) {
-      const { response } = outcome
-      if (response.card)
-        hub.broadcast(store.shopId, {
-          type: 'card.upsert',
-          card: response.card,
-        })
-      else if (!store.pending().some((r) => r.id === input.requestId)) {
-        hub.broadcast(store.shopId, {
-          type: 'card.remove',
-          requestId: input.requestId,
-        })
-      }
-      if (response.receipt)
-        hub.broadcast(store.shopId, {
-          type: 'receipt',
-          requestId: input.requestId,
-          text: response.receipt,
-        })
-      await hub.broadcastState(store.shopId)
-    }
+    const outcome = await this.ctx.store.withLock(() => this.run(input))
+    if (outcome.changed)
+      await publish(this.ctx, input.requestId, outcome.response)
     return outcome.response
   }
 
@@ -150,6 +126,7 @@ export class ActionExecutor {
         'ask_time',
         'retry_book',
         'retry_offer',
+        'retry_offer_accepted',
         'retry_ask_day',
         'retry_ask_time',
       ].includes(p.kind)

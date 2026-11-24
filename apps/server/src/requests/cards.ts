@@ -196,6 +196,15 @@ export function buildCard(
         ? 'Booked, reply not sent · Send now?'
         : 'Reply not sent',
     )
+  } else if (
+    request.status === 'slot_taken_accepted' &&
+    request.requested_start_utc
+  ) {
+    // The customer accepted an offer, then the recheck found the slot gone.
+    header = 'NEEDS YOU'
+    const when = localSlot(request.requested_start_utc, shop, 'ccc HH:mm')
+    lines[0] = `${displayText(name, 18)} said yes to ${when}`
+    lines.push('but it was just taken')
   } else if (request.intent === 'cancel') {
     header = 'WANTS TO CANCEL'
   } else if (request.intent === 'unknown') {
