@@ -9,7 +9,10 @@ import { openDatabase } from './db/index.js'
 import { createApp } from './http/app.js'
 import { attachLive } from './http/live.js'
 import { createRuntime } from './http/runtime.js'
-import { createDevAuthenticator } from './live/auth.js'
+import { randomBytes } from 'node:crypto'
+import { PairingService } from './devices/pairing.js'
+import { createPairCommandHandler } from './devices/command.js'
+import { createDeviceAuthenticator } from './live/auth.js'
 import { loadShopConfig } from './shop/config.js'
 import { BusinessTelegramAdapter } from './telegram/business.js'
 import { normalizeConnection } from './telegram/events.js'
@@ -30,7 +33,6 @@ const dev = process.env.NODE_ENV !== 'production'
 if (testMode && !dev)
   throw new Error('DEV_INJECT requires a development server')
 const shopId = testMode ? 'demo-test' : 'demo'
-const authenticate = createDevAuthenticator(shopId, dev)
 
 function startRuntime() {
   const token = process.env.TELEGRAM_BOT_TOKEN
@@ -42,6 +44,12 @@ function startRuntime() {
     (!token || !Number.isSafeInteger(ownerUserId) || ownerUserId < 1)
   )
     throw new Error('Configure TELEGRAM_BOT_TOKEN and OWNER_TELEGRAM_USER_ID')
+  // Fail fast: without a pepper no device token could be verified safely. Test
+  // mode (DEV_INJECT=1) falls back to a per-process pepper.
+  const pepper =
+    process.env.DEVICE_TOKEN_PEPPER ||
+    (testMode ? randomBytes(32).toString('hex') : '')
+  if (!pepper) throw new Error('DEVICE_TOKEN_PEPPER is required')
   const telegramMode = process.env.TELEGRAM_MODE ?? 'business'
   if (!['business', 'bot'].includes(telegramMode))
     throw new Error('Invalid TELEGRAM_MODE')
@@ -59,8 +67,9 @@ function startRuntime() {
       (testMode ? 'data/test.db' : 'data/chairside.db'),
   )
   mkdirSync(dirname(dbPath), { recursive: true })
+  const db = openDatabase(dbPath)
   const runtime = createRuntime({
-    db: openDatabase(dbPath),
+    db,
     shopId,
     shop,
     mode: testMode ? 'test' : 'live',
@@ -77,17 +86,42 @@ function startRuntime() {
         ? async (id) => normalizeConnection(await telegram.getConnection(id))
         : undefined,
   })
-  return { ...runtime, telegram }
+  const pairing = new PairingService({ db, shopId, pepper })
+  // The owner is the configured user or the owner of the stored business connection.
+  const isOwner = (userId: number) =>
+    userId === ownerUserId ||
+    (
+      db
+        .prepare('SELECT owner_tg_user_id FROM shops WHERE id=?')
+        .get(shopId) as { owner_tg_user_id: number | null } | undefined
+    )?.owner_tg_user_id === userId
+  telegram.onEvent(
+    createPairCommandHandler({
+      pairing,
+      telegram,
+      isOwner,
+      log: (message, codeSuffix) => logger.info({ codeSuffix }, message),
+    }),
+  )
+  return { ...runtime, telegram, pairing }
 }
 
 const runtime = startRuntime()
 await runtime?.ready
+// Device tokens only; the any-token bypass needs DEV_INJECT=1 outside production.
+const authenticate = runtime
+  ? createDeviceAuthenticator(
+      runtime.pairing,
+      testMode && dev ? shopId : undefined,
+    )
+  : undefined
 const server = serve(
   {
     fetch: createApp({
       logger,
       hub: runtime?.hub,
       authenticate,
+      pairing: runtime?.pairing,
       execute:
         runtime &&
         ((id, input) => {

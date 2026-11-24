@@ -9,12 +9,15 @@ import { cors } from 'hono/cors'
 import { HTTPException } from 'hono/http-exception'
 import type { Logger } from 'pino'
 import { authenticateBearer, type Authenticate } from '../live/auth.js'
+import type { PairingService } from '../devices/pairing.js'
 import type { LiveHub } from '../live/hub.js'
+import { mountPairingRoutes } from './pairing.js'
 
 export interface AppOptions {
   logger: Logger
   hub?: LiveHub
   authenticate?: Authenticate
+  pairing?: PairingService
   execute?: (shopId: string, input: ActionRequest) => Promise<ActionResponse>
 }
 
@@ -22,6 +25,7 @@ export function createApp({
   logger,
   hub,
   authenticate,
+  pairing,
   execute,
 }: AppOptions): Hono {
   const app = new Hono()
@@ -39,6 +43,8 @@ export function createApp({
   )
 
   app.get('/healthz', (c) => c.json({ ok: true }))
+
+  if (pairing) mountPairingRoutes(app, pairing)
 
   app.post('/api/actions', async (c) => {
     const shopId =

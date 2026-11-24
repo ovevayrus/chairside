@@ -1,5 +1,7 @@
 import { DeviceTokenSchema } from '@chairside/shared'
 
+import type { PairingService } from '../devices/pairing.js'
+
 export type Authenticate = (token: string) => string | null
 
 /** US-005 development credentials belong to this server's configured shop. */
@@ -19,4 +21,19 @@ export function authenticateBearer(
 ): string | null {
   const token = /^Bearer (\S+)$/i.exec(header ?? '')?.[1]
   return token ? authenticate(token) : null
+}
+
+/**
+ * Production authenticator: paired device tokens only. The dev bypass (any
+ * well-formed token) is on only when `devBypassShopId` is given, which the
+ * bootstrap does for DEV_INJECT=1 outside production.
+ */
+export function createDeviceAuthenticator(
+  pairing: Pick<PairingService, 'authenticate'>,
+  devBypassShopId?: string,
+): Authenticate {
+  const dev = devBypassShopId
+    ? createDevAuthenticator(devBypassShopId, true)
+    : undefined
+  return (token) => pairing.authenticate(token) ?? dev?.(token) ?? null
 }
