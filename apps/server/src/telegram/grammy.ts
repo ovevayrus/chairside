@@ -83,6 +83,18 @@ export abstract class GrammyAdapter implements TelegramAdapter {
     )
   }
 
+  async setProfileDescriptions(
+    description: string,
+    shortDescription: string,
+  ): Promise<void> {
+    await this.call('setMyDescription', DEFAULT_TIMEOUT_MS, (signal) =>
+      this.bot.api.setMyDescription(description, {}, signal),
+    )
+    await this.call('setMyShortDescription', DEFAULT_TIMEOUT_MS, (signal) =>
+      this.bot.api.setMyShortDescription(shortDescription, {}, signal),
+    )
+  }
+
   onEvent(handler: TelegramEventHandler): () => void {
     return this.#events.on(handler)
   }

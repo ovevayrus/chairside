@@ -3,12 +3,16 @@ import { mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
-import { pino } from 'pino'
+import type { WebSocketServer } from 'ws'
 import { FakeCalendar, googleCalendarFromEnv } from './calendar/index.js'
 import { openDatabase } from './db/index.js'
 import { createApp } from './http/app.js'
 import { attachLive } from './http/live.js'
-import { createRuntime } from './http/runtime.js'
+import {
+  applyBotProfile,
+  createPrivacyLogger,
+  createPrivacyRuntime,
+} from './privacy/index.js'
 import { randomBytes } from 'node:crypto'
 import { PairingService } from './devices/pairing.js'
 import { createPairCommandHandler } from './devices/command.js'
@@ -20,7 +24,10 @@ import { normalizeConnection } from './telegram/events.js'
 import { FakeTelegramAdapter } from './telegram/fake.js'
 import { ShopBotTelegramAdapter } from './telegram/shopbot.js'
 
-const logger = pino()
+// Redacts every text-bearing field (message text, replies, tokens) before anything is written.
+const logger = createPrivacyLogger()
+// Set once the live channel exists; /delete_my_data uses it to drop paired glasses.
+const live: { server?: WebSocketServer } = {}
 
 const port = Number(process.env.PORT || 8787)
 if (!Number.isInteger(port) || port < 1 || port > 65_535) {
@@ -80,25 +87,6 @@ function startRuntime() {
   )
   mkdirSync(dirname(dbPath), { recursive: true })
   const db = openDatabase(dbPath)
-  const runtime = createRuntime({
-    db,
-    shopId,
-    shop,
-    mode: testMode ? 'test' : 'live',
-    callbacksSupported: process.env.CALLBACKS_SUPPORTED === 'true',
-    business,
-    calendar,
-    telegram,
-    ownerUserId:
-      Number.isSafeInteger(ownerUserId) && ownerUserId > 0
-        ? ownerUserId
-        : undefined,
-    getConnection:
-      telegram instanceof BusinessTelegramAdapter
-        ? async (id) => normalizeConnection(await telegram.getConnection(id))
-        : undefined,
-  })
-  const pairing = new PairingService({ db, shopId, pepper })
   // The owner is the configured user or the owner of the stored business connection.
   const isOwner = (userId: number) =>
     userId === ownerUserId ||
@@ -107,6 +95,33 @@ function startRuntime() {
         .prepare('SELECT owner_tg_user_id FROM shops WHERE id=?')
         .get(shopId) as { owner_tg_user_id: number | null } | undefined
     )?.owner_tg_user_id === userId
+  // createPrivacyRuntime = the booking runtime plus /forget and /delete_my_data.
+  const runtime = createPrivacyRuntime(
+    {
+      db,
+      shopId,
+      shop,
+      mode: testMode ? 'test' : 'live',
+      callbacksSupported: process.env.CALLBACKS_SUPPORTED === 'true',
+      business,
+      calendar,
+      telegram,
+      ownerUserId:
+        Number.isSafeInteger(ownerUserId) && ownerUserId > 0
+          ? ownerUserId
+          : undefined,
+      getConnection:
+        telegram instanceof BusinessTelegramAdapter
+          ? async (id) => normalizeConnection(await telegram.getConnection(id))
+          : undefined,
+    },
+    isOwner,
+    () =>
+      live.server?.clients.forEach((socket) =>
+        socket.close(4401, 'Shop deleted'),
+      ),
+  )
+  const pairing = new PairingService({ db, shopId, pepper })
   telegram.onEvent(
     createPairCommandHandler({
       pairing,
@@ -180,12 +195,18 @@ const server = serve(
 )
 if (!(server instanceof Server)) throw new Error('Expected an HTTP/1.1 server')
 
-attachLive(server, {
+live.server = attachLive(server, {
   logger,
   authenticate,
   hub: runtime?.hub,
 })
 if (runtime && !(runtime.telegram instanceof FakeTelegramAdapter)) {
+  // Truthful bot description (what the bot reads, sends and stores); never fatal.
+  try {
+    await applyBotProfile(runtime.telegram)
+  } catch {
+    logger.warn('could not set the bot profile descriptions')
+  }
   runtime.telegram.start().catch(() => {
     logger.error('Telegram polling stopped')
     process.exit(1)
