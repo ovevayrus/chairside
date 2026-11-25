@@ -34,7 +34,9 @@ export function demoContext(): DemoContext {
     serviceAccountJsonPath: jsonPath,
     calendarId,
   })
-  return { calendar, shop: loadShopConfig() }
+  // Same shop config as the server (SHOP_CONFIG_PATH, relative to apps/server), so seeds and
+  // blocks land in the time zone the glasses show.
+  return { calendar, shop: loadShopConfig(process.env.SHOP_CONFIG_PATH) }
 }
 
 /** Runs a script body; prints only the error message and exits 1 on failure. */
