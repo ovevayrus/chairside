@@ -446,9 +446,85 @@ describe('cards', () => {
     )
     await vi.advanceTimersByTimeAsync(RECEIPT_MS)
     await settle()
-    expect(env.logs).toContain('receipt title=Update')
+    expect(env.logs).toContain(`receipt title=Update key=${sentKey(env)}`)
     expect(env.page().screen).toBe('receipt')
     expect(env.text('message')).toContain('● Booked Sat 28 Nov 15:00')
+  })
+
+  it('shows the outcome a broadcast gave before the answer was lost', async () => {
+    const env = await paired()
+    env.live().onFrame({ type: 'card.upsert', seq: 2, card }, 'socket')
+    await settle()
+    let fail: (error: Error) => void = () => {}
+    env.api.action.mockImplementationOnce(
+      () => new Promise((_, reject) => (fail = reject)),
+    )
+    env.app.handleEvent(listClick(0))
+    await settle()
+    // The server finished and broadcast before the HTTP answer got lost.
+    env
+      .live()
+      .onFrame({ type: 'card.remove', seq: 3, requestId: 'req-1' }, 'socket')
+    env.live().onFrame(
+      {
+        type: 'receipt',
+        seq: 4,
+        requestId: 'req-1',
+        idempotencyKey: sentKey(env),
+        text: '● Booked Sat 28 Nov 15:00',
+      },
+      'socket',
+    )
+    await settle()
+    expect(env.logs.some((line) => line.startsWith('receipt title='))).toBe(false)
+    fail(new ApiError('timeout'))
+    await settle()
+    expect(env.logs).toContain('action result req=req-1 status=broadcast')
+    expect(env.logs).not.toContain('receipt title=Not confirmed')
+    expect(env.page().screen).toBe('receipt')
+    expect(env.text('message')).toContain('● Booked Sat 28 Nov 15:00')
+  })
+
+  it("shows one receipt when another device's identical tap ran first", async () => {
+    const env = await paired()
+    env.live().onFrame({ type: 'card.upsert', seq: 2, card }, 'socket')
+    await settle()
+    let answer: (result: ActionResult) => void = () => {}
+    env.api.action.mockImplementationOnce(
+      () => new Promise((resolve) => (answer = resolve)),
+    )
+    env.app.handleEvent(listClick(0))
+    await settle()
+    // The other device's tap ran first; its broadcast arrives mid-flight.
+    env
+      .live()
+      .onFrame({ type: 'card.remove', seq: 3, requestId: 'req-1' }, 'socket')
+    env.live().onFrame(
+      {
+        type: 'receipt',
+        seq: 4,
+        requestId: 'req-1',
+        idempotencyKey: 'other-device-key-0001',
+        text: '● Booked Sat 28 Nov 15:00',
+      },
+      'socket',
+    )
+    // This tap replays it, and the answer names the key that ran.
+    answer({
+      httpStatus: 200,
+      response: {
+        status: 'ok',
+        receipt: '● Booked Sat 28 Nov 15:00',
+        idempotencyKey: 'other-device-key-0001',
+      },
+    })
+    await settle()
+    await vi.advanceTimersByTimeAsync(RECEIPT_MS)
+    await settle()
+    expect(env.page().screen).toBe('root')
+    expect(
+      env.logs.filter((line) => line.startsWith('receipt title=')),
+    ).toEqual(['receipt title=Done'])
   })
 
   it('ignores deltas older than the last state', async () => {

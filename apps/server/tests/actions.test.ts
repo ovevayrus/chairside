@@ -71,7 +71,11 @@ describe('owner actions', () => {
     const input = tap(await f.cardFor())
     const first = await f.postAction(input)
     expect(first.body.status).toBe('ok')
-    expect(await f.postAction(input)).toEqual(first)
+    // A replay names the action that ran: here the same key.
+    expect(await f.postAction(input)).toEqual({
+      ...first,
+      body: { ...first.body, idempotencyKey: input.idempotencyKey },
+    })
     expect(await f.events()).toHaveLength(1)
     expect(f.sends()).toHaveLength(1)
     expect(f.bookings()).toHaveLength(1)
@@ -88,7 +92,9 @@ describe('owner actions', () => {
       f.runtime.execute(tap(card, offer.label)),
     ])
     expect(first.status).toBe('ok')
-    expect(replay).toEqual(first)
+    // The second device's tap replays the first and names its key, so that
+    // device can match the first tap's broadcast receipt to this answer.
+    expect(replay).toEqual({ ...first, idempotencyKey: book.idempotencyKey })
     expect(competing.status).toBe('stale')
     expect(await f.events()).toHaveLength(1)
     expect(f.sends()).toHaveLength(1)

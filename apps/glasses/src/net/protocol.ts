@@ -109,6 +109,8 @@ export function asActionResponse(value: unknown): ActionResponse | null {
     return null
   if (value.card !== undefined && !isCard(value.card)) return null
   if (value.receipt !== undefined && !isString(value.receipt)) return null
+  if (value.idempotencyKey !== undefined && !isString(value.idempotencyKey))
+    return null
   return value as ActionResponse
 }
 

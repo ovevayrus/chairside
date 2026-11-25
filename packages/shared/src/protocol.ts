@@ -110,6 +110,9 @@ export const ActionResponseSchema = z.object({
   ]),
   card: CardSchema.optional(),
   receipt: receipt.optional(),
+  // On a replay, the key of the action that actually ran (another device's
+  // tap on the same card), so that device's receipt and this answer show once.
+  idempotencyKey: z.string().min(8).max(128).optional(),
 })
 
 export const PairStartRequestSchema = z.object({

@@ -28,6 +28,8 @@ const TICK_MS = 30_000
 const REDRAW_MS = 1_000
 /** Receipt frames for an action this device just ran are already on screen. */
 const OWN_RECEIPT_WINDOW_MS = 15_000
+/** How long action keys are remembered: a frame can only be skipped while its key is. */
+const KEY_MEMORY_MS = 5 * 60_000
 export const MENU = { refresh: 1, pause: 2 } as const
 
 export interface Timers {
@@ -94,6 +96,8 @@ type View =
       detail?: string
       /** Return to this card afterwards (when it is still pending). */
       back?: string
+      /** The action behind a server receipt (logged; never customer text). */
+      key?: string
     }
   | { name: 'status' }
 
@@ -123,13 +127,17 @@ export class ChairsideApp {
   private readonly recent = new Map<string, number>()
   /** Idempotency keys of this device's own actions, and when each last changed. */
   private readonly ownKeys = new Map<string, number>()
+  /** Keys whose receipt is already on screen or was: each action shows once. */
+  private readonly shownKeys = new Map<string, number>()
+  /** The in-flight action's own receipt frame, kept in case its HTTP answer is lost. */
+  private held?: { key: string; text: string }
   /** First line (who · what) of each card shown, for the "closed" receipt. */
   private readonly shownLines = new Map<string, string>()
-  private receipts: { title: string; text: string }[] = []
+  private receipts: { title: string; text: string; key?: string }[] = []
   private pausedUntil = 0
   private calendarError = false
   private firstSync = true
-  private inflight?: { card: Card; actionId: string }
+  private inflight?: { card: Card; actionId: string; key: string }
   private flash?: { screen: ScreenName; text: string }
   private view: View = { name: 'root' }
   private beforeStatus: View = { name: 'root' }
@@ -240,7 +248,9 @@ export class ChairsideApp {
       // screen change. Titles are fixed words, never customer text.
       if (view.name === 'receipt' && view !== this.receiptLogged) {
         this.receiptLogged = view
-        this.p.log(`receipt title=${view.title}`)
+        this.p.log(
+          `receipt title=${view.title}${view.key ? ` key=${view.key}` : ''}`,
+        )
       }
       if (card) {
         const key = `${card.requestId}:${card.version}`
@@ -546,10 +556,17 @@ export class ChairsideApp {
         case 'card.remove':
           this.cards = this.cards.filter((c) => c.requestId !== frame.requestId)
           break
-        case 'receipt':
-          if (!this.ownReceipt(frame.requestId, frame.idempotencyKey))
-            this.receipts.push({ title: 'Update', text: frame.text })
+        case 'receipt': {
+          const key = frame.idempotencyKey
+          if (key !== undefined && this.inflight?.key === key) {
+            // This device's action, answered by broadcast before HTTP: keep
+            // it, in case the HTTP answer is lost on the way.
+            this.held = { key, text: frame.text }
+          } else if (!this.ownReceipt(frame.requestId, key)) {
+            this.receipts.push({ title: 'Update', text: frame.text, key })
+          }
           break
+        }
         case 'error':
           if (frame.code === 'calendar_unavailable') this.calendarError = true
           break
@@ -565,7 +582,10 @@ export class ChairsideApp {
    * here a moment ago still shows; an unnamed one falls back to the request.
    */
   private ownReceipt(requestId?: string, idempotencyKey?: string): boolean {
-    if (idempotencyKey !== undefined) return this.ownKeys.has(idempotencyKey)
+    if (idempotencyKey !== undefined)
+      return (
+        this.ownKeys.has(idempotencyKey) || this.shownKeys.has(idempotencyKey)
+      )
     return this.ownAction(requestId)
   }
 
@@ -661,6 +681,7 @@ export class ChairsideApp {
     receipt: Omit<Extract<View, { name: 'receipt' }>, 'name'>,
   ) {
     this.view = { name: 'receipt', ...receipt }
+    if (receipt.key) this.shownKeys.set(receipt.key, this.p.now())
     this.render()
     this.setTimer('receipt', RECEIPT_MS, () => this.advance())
   }
@@ -682,7 +703,11 @@ export class ChairsideApp {
     const card = this.card(requestId)
     const action = card?.actions[index]
     if (!card || !action) return
-    this.inflight = { card, actionId: action.id }
+    // Known before the request goes out: the server's receipt frame for it
+    // can arrive before the HTTP answer.
+    const idempotencyKey = this.p.randomKey(16)
+    this.ownKeys.set(idempotencyKey, this.p.now())
+    this.inflight = { card, actionId: action.id, key: idempotencyKey }
     this.notes.set(requestId, {
       version: card.version,
       text: 'Sending...',
@@ -690,10 +715,6 @@ export class ChairsideApp {
     })
     this.render()
     this.p.log(`action sent req=${requestId} action=${action.id}`)
-    // Known before the request goes out: the server's receipt frame for it
-    // can arrive before the HTTP answer.
-    const idempotencyKey = this.p.randomKey(16)
-    this.ownKeys.set(idempotencyKey, this.p.now())
     let response: ActionResponse
     let answered = false
     try {
@@ -707,8 +728,21 @@ export class ChairsideApp {
     } catch (error) {
       this.inflight = undefined
       this.notes.delete(requestId)
+      const held = this.held?.key === idempotencyKey ? this.held : undefined
+      this.held = undefined
       if (error instanceof ApiError && error.unauthorized) {
         this.onUnauthorized()
+        return
+      }
+      if (held) {
+        // The answer was lost, but the server's broadcast already told us.
+        this.p.log(`action result req=${requestId} status=broadcast`)
+        this.showReceipt({
+          title: 'Update',
+          text: held.text,
+          detail: card.lines[0],
+          key: held.key,
+        })
         return
       }
       this.p.log(`action result req=${requestId} status=unconfirmed`)
@@ -723,8 +757,9 @@ export class ChairsideApp {
       const now = this.p.now()
       for (const [id, at] of this.recent)
         if (now - at >= OWN_RECEIPT_WINDOW_MS) this.recent.delete(id)
-      for (const [key, at] of this.ownKeys)
-        if (now - at >= OWN_RECEIPT_WINDOW_MS) this.ownKeys.delete(key)
+      for (const keys of [this.ownKeys, this.shownKeys])
+        for (const [key, at] of keys)
+          if (now - at >= KEY_MEMORY_MS) keys.delete(key)
       if (answered) {
         this.recent.set(requestId, now)
         this.ownKeys.set(idempotencyKey, now)
@@ -736,15 +771,31 @@ export class ChairsideApp {
     }
     this.inflight = undefined
     this.notes.delete(requestId)
+    if (this.held?.key === idempotencyKey) this.held = undefined
+    // A replay names the action that really ran (another device's tap on the
+    // same card): its broadcast and this answer are one outcome, shown once.
+    const executed = response.idempotencyKey ?? idempotencyKey
+    if (executed !== idempotencyKey) this.ownKeys.set(executed, this.p.now())
+    this.receipts = this.receipts.filter((r) => r.key !== executed)
     this.p.log(`action result req=${requestId} status=${response.status}`)
-    this.applyResult(card, response)
+    this.applyResult(card, response, this.shownKeys.has(executed))
   }
 
-  private applyResult(card: Card, response: ActionResponse): void {
+  private applyResult(
+    card: Card,
+    response: ActionResponse,
+    alreadyShown = false,
+  ): void {
     const { requestId } = card
     const who = card.lines[0]
     if (response.status === 'ok') {
       this.cards = this.cards.filter((c) => c.requestId !== requestId)
+      if (alreadyShown) {
+        // Another device's identical tap: its receipt is already shown.
+        this.view = { name: 'root' }
+        this.reconcile()
+        return
+      }
       this.showReceipt({
         title: 'Done',
         text: response.receipt ?? '● Done',

@@ -72,7 +72,7 @@ export class ActionExecutor {
         a.request_id === row.id &&
         a.version === input.version &&
         a.action_id === input.actionId
-          ? replay(a)
+          ? { ...replay(a), idempotencyKey: a.idempotency_key }
           : {
               status: 'error',
               receipt: 'Idempotency key belongs to another action',
