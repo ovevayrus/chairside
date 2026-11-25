@@ -18,7 +18,8 @@ npm run smoke:live -- --keep-demo         # keep the seeded events and the block
 
 1. `apps/server/.env` is filled in (Telegram bot token, owner user id, Google service-account path and calendar id, device token pepper) and `DEV_INJECT` is not `1`. Never paste keys into chat.
 2. The Even Hub simulator is installed, and ports 8787, 5173 and 9898 are free.
-3. Telegram Desktop is logged in as the customer accounts, with Telegram first names Anna and Omar; one account can play both. In Business mode they message the owner's account, not the bot.
+3. Telegram Desktop is logged in as the customer accounts, with Telegram first names Anna and Omar; one account can play both. In Business mode they message the owner's account, not the bot. Put their Telegram user ids (from @userinfobot) in `SMOKE_CUSTOMER_IDS` in `apps/server/.env`, comma-separated: the runner acts only on cards from those chats.
+3a. During the run, the terminal asks for two counts in Moment 3 (messages below Anna's beard-trim question, before and after the tap), and Omar's "yes" must be typed, not pressed as the Book button.
 4. Google Calendar is open in week view on the week of Sat 5 Dec 2026, showing the shop calendar. Today the shop calendar holds only demo events: the glasses' root screen shows today's next bookings, and its screenshots are public.
 5. Screen layout: simulator left, Telegram Desktop top right, Google Calendar bottom right.
 6. By hand: start `npm run start:server`, `npm run start:glasses` and `npm run start:simulator` from the repository root. **Record:** start time, server log line showing it is listening.

@@ -30,6 +30,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
+import { createInterface } from 'node:readline/promises'
 import { DatabaseSync } from 'node:sqlite'
 import { setTimeout as delay } from 'node:timers/promises'
 import { DateTime } from 'luxon'
@@ -40,17 +41,19 @@ import {
   resetDemo,
   seedDemoEvents,
 } from '../apps/server/src/demo/index.ts'
+import { CODE_TTL_MS } from '../apps/server/src/devices/pairing.ts'
 import {
   appUrl,
   assertPortsFree,
   httpOk,
   launchSimulator,
+  packageBin,
   ports,
   root,
   settledFrame,
   startVite,
 } from '../e2e/lib/harness.mjs'
-import { start, stop, stopAll, waitFor } from '../e2e/lib/processes.mjs'
+import { run, start, stop, stopAll, waitFor } from '../e2e/lib/processes.mjs'
 import { findSimulator } from '../e2e/lib/simulator.mjs'
 import { demoContext } from './lib/demo-env.ts'
 import {
@@ -101,6 +104,9 @@ let interrupted = false
 let finishing
 // Requests this run asked for; any other card on the glasses keeps the evidence private.
 const ownRequests = new Set()
+// The test customers' Telegram user ids (SMOKE_CUSTOMER_IDS): the only chats
+// whose cards the runner acts on. Held in memory, never printed or recorded.
+let customerChats = new Set()
 
 const say = (message) => console.log(`[smoke] ${message}`)
 const ask = (message) => console.log(`\n[smoke] >>> ${message}\n`)
@@ -210,7 +216,7 @@ function sentInChat(chatId) {
 /** The card's first action, the one a tap selects: cards list proposals in rowid order. */
 function firstAction(requestId, version) {
   return get(
-    'SELECT kind, slot_start_utc FROM proposals WHERE request_id = ? AND version = ? ORDER BY rowid LIMIT 1',
+    'SELECT id, kind, slot_start_utc FROM proposals WHERE request_id = ? AND version = ? ORDER BY rowid LIMIT 1',
     requestId,
     version,
   )
@@ -273,11 +279,17 @@ function waitLine(what, pattern, from, timeoutMs, accept = () => true) {
   )
 }
 
-/** Waits for a receipt with this one-word title (Done, Update) at or after `from`. */
-function waitReceipt(title, from, timeoutMs = 15_000) {
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * Waits for a drawn receipt with this one-word title (Done, Update) at or
+ * after `from`; with `key`, only the receipt for that action.
+ */
+function waitReceipt(title, from, timeoutMs = 15_000, key) {
+  const suffix = key ? ` key=${escapeRegExp(key)}` : ''
   return waitLine(
-    `receipt title=${title}`,
-    new RegExp(`\\[chairside\\] receipt title=${title}$`),
+    `receipt title=${title}${key ? ` key=${key}` : ''}`,
+    new RegExp(`\\[chairside\\] receipt title=${title}${suffix}$`),
     from,
     timeoutMs,
   )
@@ -292,8 +304,11 @@ function cardKeys() {
   return keys
 }
 
-/** A settled glasses screenshot for the evidence; failures are noted, not fatal. */
-async function shot(name, caption, { changed = true } = {}) {
+/**
+ * A settled glasses screenshot for the evidence. A failed optional one is
+ * noted; a failed required one (named in US-015) fails the run.
+ */
+async function shot(name, caption, { changed = true, required = false } = {}) {
   const file = `${String(r.shots.length + 1).padStart(2, '0')}-${name}.png`
   try {
     const frame = await settledFrame(sim, changed ? lastFrame : undefined, 4000)
@@ -305,11 +320,34 @@ async function shot(name, caption, { changed = true } = {}) {
       path: '(none)',
       caption: `${caption}: screenshot failed (${redact(error.message)})`,
     })
+    if (required) check(false, `screenshot ${name} saved`)
   }
 }
 
 async function backToRoot(from) {
   await waitLine('screen=root', /\[chairside\] screen=root/, from, 15_000)
+}
+
+/**
+ * Asks the operator for a count they read off the screen; the Bot API cannot
+ * read a chat's history. Times out after --wait minutes.
+ */
+async function operatorCount(question) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  // On a terminal, readline takes Ctrl+C: pass it on to the runner.
+  rl.on('SIGINT', () => process.emit('SIGINT'))
+  try {
+    const answer = await rl.question(`\n[smoke] ??? ${question} `, {
+      signal: AbortSignal.timeout(waitMs),
+    })
+    const count = Number(String(answer).trim())
+    if (!Number.isInteger(count) || count < 0) {
+      throw new Error(`not a count: "${String(answer).trim().slice(0, 20)}"`)
+    }
+    return count
+  } finally {
+    rl.close()
+  }
 }
 
 // ---- steps ------------------------------------------------------------------
@@ -334,6 +372,17 @@ function preflight() {
   ].filter((name) => !process.env[name])
   if (missing.length) {
     throw new Error(`Missing ${missing.join(', ')} in apps/server/.env`)
+  }
+  customerChats = new Set(
+    String(process.env.SMOKE_CUSTOMER_IDS ?? '')
+      .split(',')
+      .map((part) => Number(part.trim()))
+      .filter((id) => Number.isSafeInteger(id) && id > 0),
+  )
+  if (customerChats.size === 0) {
+    throw new Error(
+      'Set SMOKE_CUSTOMER_IDS in apps/server/.env to the Telegram user ids of the test customer accounts, comma-separated (message @userinfobot from each). The runner acts only on cards from those chats.',
+    )
   }
   const day = options.day ?? defaultDay(Date.now(), shop.timezone)
   const date = DateTime.fromISO(day, { zone: shop.timezone })
@@ -377,6 +426,17 @@ async function checkDayFree() {
       `${r.env.spokenDay} already has ${clash.length} event(s) between 14:00 and 18:30 (bookings from an earlier run?). Delete them in Google Calendar or pass --day with another free day.`,
     )
   }
+  // The glasses' root screen names today's next bookings, and its
+  // screenshots are public: today may hold demo events only.
+  const today = DateTime.now().setZone(shop.timezone)
+  const real = (await dayEvents(today.toISODate())).filter(
+    (event) => !isDemoEvent(event) && Date.parse(event.endUtc) > Date.now(),
+  )
+  if (real.length) {
+    throw new Error(
+      `Today's shop calendar has ${real.length} upcoming non-demo event(s); the glasses' home screen would show them in public screenshots. Use a calendar with only demo events today.`,
+    )
+  }
 }
 
 async function botUsername() {
@@ -405,7 +465,6 @@ async function resetAndSeed() {
     seeded: seeded.map(({ event }) => ({
       id: event.id,
       local: formatLocal(event, shop.timezone),
-      summary: event.summary,
     })),
   }
   mark(
@@ -446,19 +505,16 @@ async function pairFromScratch(simulator, username) {
     30_000,
   )
   r.pairing.launchToCodeS = secondsBetween(launchedAt, issued.at)
-  const row = get(
-    'SELECT code, expires_at FROM pair_codes WHERE shop_id IS NULL AND consumed_at IS NULL AND expires_at > ? ORDER BY rowid DESC LIMIT 1',
-    new Date().toISOString(),
-  )
-  if (!row) throw new Error('no live pairing code in the server database')
   await shot('pairing', 'the pairing screen (single-use code, long expired)', {
     changed: false,
   })
+  // The owner reads the code off the glasses: a code looked up in the
+  // database could belong to another device that asked at the same moment.
   ask(
-    `OWNER: from the owner's Telegram account, send this to @${username ?? 'the bot'}:   /pair ${row.code}`,
+    `OWNER: from the owner's Telegram account, send @${username ?? 'the bot'} the line shown on the glasses:   /pair <6-character code>`,
   )
   mark('waiting for the owner to pair')
-  const expiresAt = Date.parse(row.expires_at)
+  const expiresAt = issued.at + CODE_TTL_MS
   let paired
   try {
     paired = await waitLine(
@@ -501,6 +557,10 @@ async function customerCard(label, who, text) {
   const requestId = shown.match[1]
   const request = get('SELECT * FROM requests WHERE id = ?', requestId)
   check(Boolean(request), `${label}: the server holds the request behind the card`)
+  check(
+    customerChats.has(Number(request.chat_id)),
+    `${label}: the card comes from a declared test customer chat (SMOKE_CUSTOMER_IDS)`,
+  )
   check(
     personaNamed(request),
     `${label}: the customer's Telegram first name is Anna or Omar (the screenshots are public evidence)`,
@@ -560,9 +620,12 @@ async function tap(card, label, wanted, expected) {
     from,
     30_000,
   )
+  // Unique per request, version and action: this tap's row, not a competing one.
   const action = get(
-    'SELECT * FROM actions WHERE request_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
+    'SELECT * FROM actions WHERE request_id = ? AND version = ? AND action_id = ?',
     card.requestId,
+    card.version,
+    first.id,
   )
   return { from, tappedAt, status: result.match[1], action }
 }
@@ -584,6 +647,7 @@ async function moment1() {
   )
   await shot('m1-card', 'Moment 1: the card, smart default highlighted', {
     changed: false,
+    required: true,
   })
   const t = await tap(
     card,
@@ -599,7 +663,9 @@ async function moment1() {
   check(t.status === 'ok', `Moment 1 tap answered ok (got ${t.status})`)
   const receipt = await waitReceipt('Done', t.from)
   m.tapToReceiptS = secondsBetween(t.tappedAt, receipt.at)
-  await shot('m1-receipt', 'Moment 1: the receipt after one tap')
+  await shot('m1-receipt', 'Moment 1: the receipt after one tap', {
+    required: true,
+  })
   m.replyMessageId = t.action.telegram_message_id ?? undefined
   check(
     Boolean(m.replyMessageId),
@@ -663,10 +729,8 @@ async function moment2() {
   check(t.status === 'ok', `Moment 2 offer tap answered ok (got ${t.status})`)
   await waitReceipt('Done', t.from)
   await shot('m2-offer-sent', 'Moment 2: the offer went out')
-  const offer = get(
-    'SELECT * FROM offers WHERE request_id = ? ORDER BY rowid DESC LIMIT 1',
-    card.requestId,
-  )
+  // The offer row shares its id with the tapped action (send.ts insertOffer).
+  const offer = get('SELECT * FROM offers WHERE id = ?', t.action.id)
   check(
     Boolean(offer?.offer_message_id),
     'Moment 2 offer sent: Telegram returned a message id',
@@ -675,7 +739,8 @@ async function moment2() {
   m.offerMessageId = offer.offer_message_id
   m.offerStatusAfterTap = offer.status
 
-  ask('OMAR: reply in the same chat:   yes   (or press the Book button under the offer)')
+  const messageRow = maxMessageRow()
+  ask('OMAR: type yes in the same chat and send it (not the Book button)')
   mark('waiting for the "yes"')
   // Finished means a stored outcome: finish() writes result_json with the final state.
   const accepted = await waitFor(
@@ -691,14 +756,23 @@ async function moment2() {
     250,
   )
   mark('offer accepted')
-  // The update receipt stays up for 2 s: capture it before the slower checks.
-  let update
-  try {
-    update = await waitReceipt('Update', t.from)
-    await shot('m2-booked', 'Moment 2: the "yes" booked it; the glasses show the update')
-  } catch {
-    // Reported by the note below.
-  }
+  // This acceptance's receipt stays up for 2 s: capture it before the slower checks.
+  const update = await waitReceipt('Update', t.from, 15_000, `offer:${offer.id}`)
+  await shot(
+    'm2-booked',
+    'Moment 2: the "yes" booked it; the glasses show the update',
+    { required: true },
+  )
+  // A typed "yes" is stored on the offer's request; a button press is not.
+  m.yesMessageIds = all(
+    'SELECT message_id FROM request_messages WHERE request_id = ? AND rowid > ? ORDER BY message_id',
+    card.requestId,
+    messageRow,
+  ).map((row) => row.message_id)
+  check(
+    m.yesMessageIds.length > 0,
+    'Moment 2 the customer typed the "yes" (its message id is recorded)',
+  )
   const outcome = JSON.parse(accepted.result_json)
   const received = receivedBefore(updates, accepted.created_at)
   m.yesToBookedS = received
@@ -729,8 +803,7 @@ async function moment2() {
   check(m.eventVerified, 'Moment 2 event read back from Google Calendar')
   m.offerStatus = get('SELECT status FROM offers WHERE id = ?', offer.id).status
   check(m.offerStatus === 'accepted', `Moment 2 offer marked accepted (got ${m.offerStatus})`)
-  note(Boolean(update), 'Moment 2 the glasses showed the booking as an update')
-  if (update) await backToRoot(sim.entries.indexOf(update.entry))
+  await backToRoot(sim.entries.indexOf(update.entry))
   mark('Moment 2 done')
 }
 
@@ -744,10 +817,15 @@ async function moment3() {
     `Moment 3 parsed a beard trim at 17:00 (got ${describeRequest(card.request)})`,
   )
   m.slotLocal = local(card.request.requested_start_utc)
-  await shot('m3-card', 'Moment 3: the card shows 17:00 free', { changed: false })
+  await shot('m3-card', 'Moment 3: the card shows 17:00 free', {
+    changed: false,
+    required: true,
+  })
   stopIfFinishing()
   const block = await blockSlot(calendar, shop, `${day} 17:00`, 30, String(Date.now()))
   m.blockId = block.id
+  m.blockStartUtc = block.startUtc
+  m.blockEndUtc = block.endUtc
   m.blockLocal = formatLocal(block, shop.timezone)
   mark(`foreign block inserted at ${m.blockLocal}`)
   // Tap only once Google reports the block, so the server's recheck cannot miss it.
@@ -763,7 +841,10 @@ async function moment3() {
     1000,
   )
   const chatId = card.request.chat_id
+  const threadQuestion =
+    "In ANNA's chat (customer view), how many messages are below her beard-trim question? Type the number, then Enter:"
   m.before = {
+    thread: await operatorCount(threadQuestion),
     sent: sentInChat(chatId),
     events: (await dayEvents(day, block.id)).length,
   }
@@ -790,11 +871,17 @@ async function moment3() {
   await shot(
     'm3-slot-taken',
     'Moment 3: nothing sent; the card says the slot was just taken and offers the next opening',
+    { required: true },
   )
   m.after = {
     sent: sentInChat(chatId),
     events: (await dayEvents(day, block.id)).length,
+    thread: await operatorCount(`Again: ${threadQuestion}`),
   }
+  check(
+    m.after.thread === m.before.thread,
+    `Moment 3 Anna's thread did not change (operator count before ${m.before.thread}, after ${m.after.thread})`,
+  )
   check(
     m.after.sent === m.before.sent,
     `Moment 3 sent no message (before ${m.before.sent}, after ${m.after.sent})`,
@@ -871,11 +958,25 @@ async function cleanup() {
     return
   }
   const removed = await resetDemo(calendar, shop, DateTime.now())
-  const blockId = r.moment3?.blockId
-  if (blockId && !removed.some((event) => event.id === blockId)) {
-    await calendar.deleteEvent(blockId).catch(() => {})
+  let block = ''
+  const m3 = r.moment3
+  if (m3?.blockId && !removed.some((event) => event.id === m3.blockId)) {
+    // Outside the reset window: delete it only while it is still the untouched
+    // demo block; a failed delete fails the cleanup instead of hiding.
+    const event = await calendar.getEvent(m3.blockId)
+    if (
+      event &&
+      isDemoEvent(event) &&
+      sameInstant(event.startUtc, m3.blockStartUtc) &&
+      sameInstant(event.endUtc, m3.blockEndUtc)
+    ) {
+      await calendar.deleteEvent(m3.blockId)
+      block = ' and the Moment 3 block'
+    } else if (event) {
+      block = '; the Moment 3 block was changed after the run, so it stays'
+    }
   }
-  r.cleanup = `removed ${removed.length} demo event(s) (the seeded bookings and the Moment 3 block); the Moment 1 and 2 bookings stay${pending}`
+  r.cleanup = `removed ${removed.length} demo event(s)${block}; the Moment 1 and 2 bookings stay${pending}`
 }
 
 /** A failed run's report: only in the git-ignored run folder, never over the public evidence. */
@@ -883,8 +984,14 @@ function writeFailReport(error) {
   mkdirSync(runDir, { recursive: true })
   writeFileSync(join(runDir, 'report.md'), renderReport(r))
   writeFileSync(join(runDir, 'report.json'), `${JSON.stringify(r, null, 2)}\n`)
-  // The full error (child output included) stays local: the folder is git-ignored.
-  if (error) writeFileSync(join(runDir, 'error.txt'), `${error.stack ?? error}\n`)
+  // The full error (child output included) stays local in the git-ignored
+  // folder, and is still redacted: child output can carry tokens or ids.
+  if (error) {
+    writeFileSync(
+      join(runDir, 'error.txt'),
+      `${redact(String(error.stack ?? error))}\n`,
+    )
+  }
   say(
     'FAIL report: docs/evidence/live-smoke-run/report.md (git-ignored); the last passing evidence is untouched',
   )
@@ -996,6 +1103,15 @@ try {
   say(`  Omar:   ${lines.yes}`)
   say(`  Anna:   ${lines.beard}`)
   if (options.finalDm) say(`  Anna:   ${lines.final}`)
+  // The server imports @chairside/shared from dist: a missing or stale build
+  // would fail later or strip new protocol fields, after the calendar changed.
+  say('building @chairside/shared')
+  await run(
+    'tsc',
+    process.execPath,
+    [packageBin('typescript', 'tsc'), '-b', 'packages/shared'],
+    { cwd: root, windowsHide: true },
+  )
   await checkDayFree()
   rmSync(runDir, { recursive: true, force: true })
   mkdirSync(runDir, { recursive: true })
