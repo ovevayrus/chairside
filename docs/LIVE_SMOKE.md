@@ -73,5 +73,10 @@ npm run smoke:live -- --keep-demo         # keep the seeded events and the block
 
 ## H. Cleanup
 
-36. Run `npm run demo:reset`. **Record:** the output. Only events marked `chairsideDemo=1` are removed; real bookings made in moments 1 and 2 stay.
+36. Run `npm run demo:reset`. **Record:** the output. Only events marked `chairsideDemo=1` are removed; real bookings made in moments 1 and 2 stay. (The runner deletes only the demo events it created itself, and only while they are unchanged.)
 37. Fill in `docs/evidence/live-smoke.md` with every recorded value. Rerun the checklist after any fix.
+
+## Known limits of the runner
+
+- **Reply visible on the customer's screen.** The runner records when Telegram confirmed the reply (the Bot API's answer). The moment the reply appears in Alex's chat is measured afterwards from the screen recording.
+- **Two devices, one lost answer.** If two paired devices press the same card and one of them loses its HTTP answer, that device can show "Not confirmed" before the booking's receipt arrives. The demo uses one device.

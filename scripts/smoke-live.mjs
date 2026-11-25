@@ -23,6 +23,7 @@
 // SHOP_CONFIG_PATH (relative to apps/server, from the shell or .env) picks the
 // shop, e.g. ../../config/shop.recording.json.
 import {
+  copyFileSync,
   mkdirSync,
   readdirSync,
   renameSync,
@@ -107,6 +108,11 @@ const ownRequests = new Set()
 // The test customers' Telegram user ids (SMOKE_CUSTOMER_IDS): the only chats
 // whose cards the runner acts on. Held in memory, never printed or recorded.
 let customerChats = new Set()
+// Each role's chat, fixed by its first message (in memory only).
+const roleChats = {}
+// Calendar events this run created, as created: cleanup deletes only these,
+// and only while unchanged.
+const created = []
 
 const say = (message) => console.log(`[smoke] ${message}`)
 const ask = (message) => console.log(`\n[smoke] >>> ${message}\n`)
@@ -236,14 +242,13 @@ function describeRequest(row) {
 
 /**
  * Checked in memory only; the name itself is never printed or recorded. The
- * whole first name must match: cards show all of it.
+ * whole first name must match the role (cards show all of it).
  */
-function personaNamed(row) {
-  return PERSONAS.has(
-    String(row.customer_first_name ?? '')
-      .trim()
-      .toLowerCase(),
-  )
+function personaNamed(row, role) {
+  const name = String(row.customer_first_name ?? '')
+    .trim()
+    .toLowerCase()
+  return PERSONAS.has(name) && name === role
 }
 
 /** Stops a step once finishing has begun (Ctrl+C or an error elsewhere). */
@@ -261,6 +266,15 @@ async function poll() {
 }
 
 const cursor = () => sim.entries.length
+
+// Console lines that mean the glasses' display or selection changed.
+const SCREEN_CHANGE =
+  /\[chairside\] (?:screen=|card shown |receipt title=|gesture=)/
+
+function lastIndexOf(items, predicate) {
+  for (let i = items.length - 1; i >= 0; i--) if (predicate(items[i])) return i
+  return -1
+}
 
 /** Waits for an app console line at or after index `from`; returns { entry, match, at }. */
 function waitLine(what, pattern, from, timeoutMs, accept = () => true) {
@@ -286,7 +300,7 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
  * after `from`; with `key`, only the receipt for that action.
  */
 function waitReceipt(title, from, timeoutMs = 15_000, key) {
-  const suffix = key ? ` key=${escapeRegExp(key)}` : ''
+  const suffix = key ? ` key=${escapeRegExp(key)}` : '(?: key=\\S+)?'
   return waitLine(
     `receipt title=${title}${key ? ` key=${key}` : ''}`,
     new RegExp(`\\[chairside\\] receipt title=${title}${suffix}$`),
@@ -308,10 +322,28 @@ function cardKeys() {
  * A settled glasses screenshot for the evidence. A failed optional one is
  * noted; a failed required one (named in US-015) fails the run.
  */
-async function shot(name, caption, { changed = true, required = false } = {}) {
+async function shot(
+  name,
+  caption,
+  { changed = true, required = false, since } = {},
+) {
   const file = `${String(r.shots.length + 1).padStart(2, '0')}-${name}.png`
   try {
     const frame = await settledFrame(sim, changed ? lastFrame : undefined, 4000)
+    // `since` is the console entry of the state this picture is for (drawn
+    // before the capture began). If the display moved on before the capture
+    // finished, the picture may show something else.
+    if (since !== undefined) {
+      const capturedAt = Date.now()
+      await poll()
+      const moved = sim.entries
+        .slice(since + 1)
+        .some(
+          (entry) =>
+            SCREEN_CHANGE.test(entry.message) && entryTime(entry) <= capturedAt,
+        )
+      if (moved) throw new Error('the display changed before the capture finished')
+    }
     lastFrame = frame
     writeFileSync(join(runDir, file), frame.png)
     r.shots.push({ file, path: `docs/evidence/live-smoke-run/${file}`, caption })
@@ -340,9 +372,12 @@ async function operatorCount(question) {
     const answer = await rl.question(`\n[smoke] ??? ${question} `, {
       signal: AbortSignal.timeout(waitMs),
     })
-    const count = Number(String(answer).trim())
-    if (!Number.isInteger(count) || count < 0) {
-      throw new Error(`not a count: "${String(answer).trim().slice(0, 20)}"`)
+    // Digits only: a bare Enter must not count as zero. The answer itself is
+    // never echoed into errors (it is free text).
+    const text = String(answer).trim()
+    const count = Number(text)
+    if (!/^\d+$/.test(text) || !Number.isSafeInteger(count)) {
+      throw new Error('the operator answer was not a whole number')
     }
     return count
   } finally {
@@ -379,9 +414,9 @@ function preflight() {
       .map((part) => Number(part.trim()))
       .filter((id) => Number.isSafeInteger(id) && id > 0),
   )
-  if (customerChats.size === 0) {
+  if (customerChats.size < 2) {
     throw new Error(
-      'Set SMOKE_CUSTOMER_IDS in apps/server/.env to the Telegram user ids of the test customer accounts, comma-separated (message @userinfobot from each). The runner acts only on cards from those chats.',
+      'Set SMOKE_CUSTOMER_IDS in apps/server/.env to the Telegram user ids of the two test customer accounts (Alex and James), comma-separated (message @userinfobot from each). The runner acts only on cards from those chats.',
     )
   }
   const day = options.day ?? defaultDay(Date.now(), shop.timezone)
@@ -460,6 +495,14 @@ async function resetAndSeed() {
     DateTime.now(),
     String(Date.now()),
   )
+  for (const { event } of seeded) {
+    created.push({
+      id: event.id,
+      startUtc: event.startUtc,
+      endUtc: event.endUtc,
+      summary: event.summary,
+    })
+  }
   r.clean = {
     removed: removed.length,
     seeded: seeded.map(({ event }) => ({
@@ -539,8 +582,13 @@ async function pairFromScratch(simulator, username) {
   mark('paired')
 }
 
-/** Prints what a customer should send and waits for the new card it opens. */
-async function customerCard(label, who, text) {
+/**
+ * Prints what a customer should send and waits for the new card it opens.
+ * `role` is the customer this step belongs to ('alex' or 'james'): the
+ * card must carry that exact first name, and each role keeps one chat (the
+ * two roles never share one). Chat ids stay in memory only.
+ */
+async function customerCard(label, who, text, role) {
   const from = cursor()
   const known = cardKeys()
   const updates = maxUpdateId()
@@ -557,27 +605,42 @@ async function customerCard(label, who, text) {
   const requestId = shown.match[1]
   const request = get('SELECT * FROM requests WHERE id = ?', requestId)
   check(Boolean(request), `${label}: the server holds the request behind the card`)
+  const chat = Number(request.chat_id)
   check(
-    customerChats.has(Number(request.chat_id)),
+    customerChats.has(chat),
     `${label}: the card comes from a declared test customer chat (SMOKE_CUSTOMER_IDS)`,
   )
+  const Role = role[0].toUpperCase() + role.slice(1)
   check(
-    personaNamed(request),
-    `${label}: the customer's Telegram first name is Alex or James (the screenshots are public evidence)`,
+    personaNamed(request, role),
+    `${label}: the card is from ${Role} (exact Telegram first name; the screenshots are public evidence)`,
   )
+  if (roleChats[role] === undefined) {
+    check(
+      !Object.values(roleChats).includes(chat),
+      `${label}: ${Role} writes from a different account than the other customer`,
+    )
+    roleChats[role] = chat
+  } else {
+    check(roleChats[role] === chat, `${label}: ${Role} writes from the same chat as before`)
+  }
   ownRequests.add(requestId)
   const received = receivedBefore(updates, request.updated_at)
+  // Only this run's messages: a request still pending from an earlier run
+  // keeps its old ids, and an edited old message adds none.
+  const messageIds = all(
+    'SELECT message_id FROM request_messages WHERE request_id = ? AND rowid > ? ORDER BY message_id',
+    requestId,
+    messageRow,
+  ).map((row) => row.message_id)
+  check(messageIds.length > 0, `${label}: the card carries a new message from this run`)
   mark(`${label} card shown (request ${requestId})`)
   return {
     requestId,
     version: Number(shown.match[2]),
     request,
-    // Only this run's messages: a request still pending from an earlier run keeps its old ids.
-    messageIds: all(
-      'SELECT message_id FROM request_messages WHERE request_id = ? AND rowid > ? ORDER BY message_id',
-      requestId,
-      messageRow,
-    ).map((row) => row.message_id),
+    shownIndex: sim.entries.indexOf(shown.entry),
+    messageIds,
     telegramToCardS: secondsBetween(
       Date.parse(request.last_customer_msg_at),
       shown.at,
@@ -609,6 +672,23 @@ async function tap(card, label, wanted, expected) {
     Boolean(first) && expected(first),
     `${label}: the highlighted action is ${wanted} (got ${describeAction(first)})`,
   )
+  // A click acts on whatever the glasses show: it must still be this card
+  // and version, with no gesture or screen change since it was drawn, so
+  // its first action is still the selected one.
+  await poll()
+  const drawn = lastIndexOf(
+    sim.entries,
+    (entry) =>
+      entry.message ===
+      `[chairside] card shown req=${card.requestId} v=${card.version}`,
+  )
+  check(
+    drawn >= 0 &&
+      !sim.entries
+        .slice(drawn + 1)
+        .some((entry) => SCREEN_CHANGE.test(entry.message)),
+    `${label}: the glasses still show this card with its first action selected`,
+  )
   stopIfFinishing()
   const from = cursor()
   const tappedAt = Date.now()
@@ -632,7 +712,12 @@ async function tap(card, label, wanted, expected) {
 
 async function moment1() {
   const { day } = r.env
-  const card = await customerCard('Moment 1', 'ALEX (customer account 1)', lines.haircut)
+  const card = await customerCard(
+    'Moment 1',
+    'ALEX (customer account 1)',
+    lines.haircut,
+    'alex',
+  )
   const m = (r.moment1 = {
     requestId: card.requestId,
     dmMessageIds: card.messageIds,
@@ -648,6 +733,7 @@ async function moment1() {
   await shot('m1-card', 'Moment 1: the card, smart default highlighted', {
     changed: false,
     required: true,
+    since: card.shownIndex,
   })
   const t = await tap(
     card,
@@ -665,6 +751,7 @@ async function moment1() {
   m.tapToReceiptS = secondsBetween(t.tappedAt, receipt.at)
   await shot('m1-receipt', 'Moment 1: the receipt after one tap', {
     required: true,
+    since: sim.entries.indexOf(receipt.entry),
   })
   m.replyMessageId = t.action.telegram_message_id ?? undefined
   check(
@@ -701,6 +788,7 @@ async function moment2() {
     'Moment 2',
     'JAMES (customer account 2)',
     lines.skinFade,
+    'james',
   )
   const m = (r.moment2 = {
     requestId: card.requestId,
@@ -714,9 +802,11 @@ async function moment2() {
   )
   await shot('m2-card', 'Moment 2: 15:00 is taken; the card offers the next opening', {
     changed: false,
+    since: card.shownIndex,
   })
   // Taken before the tap, so even an instant "yes" is after this point.
   const updates = maxUpdateId()
+  const messageRow = maxMessageRow()
   const t = await tap(
     card,
     'Moment 2',
@@ -727,19 +817,21 @@ async function moment2() {
       Date.parse(first.slot_start_utc) < Date.parse(localUtc(day, '18:30')),
   )
   check(t.status === 'ok', `Moment 2 offer tap answered ok (got ${t.status})`)
-  await waitReceipt('Done', t.from)
-  await shot('m2-offer-sent', 'Moment 2: the offer went out')
+  const offerSent = await waitReceipt('Done', t.from)
+  await shot('m2-offer-sent', 'Moment 2: the offer went out', {
+    since: sim.entries.indexOf(offerSent.entry),
+  })
   // The offer row shares its id with the tapped action (send.ts insertOffer).
   const offer = get('SELECT * FROM offers WHERE id = ?', t.action.id)
   check(
     Boolean(offer?.offer_message_id),
     'Moment 2 offer sent: Telegram returned a message id',
   )
+  m.offerId = offer.id
   m.offerLocal = interval(offer.slot_start_utc, offer.slot_end_utc)
   m.offerMessageId = offer.offer_message_id
   m.offerStatusAfterTap = offer.status
 
-  const messageRow = maxMessageRow()
   ask('JAMES: type yes in the same chat and send it (not the Book button)')
   mark('waiting for the "yes"')
   // Finished means a stored outcome: finish() writes result_json with the final state.
@@ -761,7 +853,7 @@ async function moment2() {
   await shot(
     'm2-booked',
     'Moment 2: the "yes" booked it; the glasses show the update',
-    { required: true },
+    { required: true, since: sim.entries.indexOf(update.entry) },
   )
   // A typed "yes" is stored on the offer's request; a button press is not.
   m.yesMessageIds = all(
@@ -769,9 +861,11 @@ async function moment2() {
     card.requestId,
     messageRow,
   ).map((row) => row.message_id)
+  // The server never keeps the text, so this proves a typed reply accepted
+  // the offer, not that it read exactly "yes".
   check(
     m.yesMessageIds.length > 0,
-    'Moment 2 the customer typed the "yes" (its message id is recorded)',
+    'Moment 2 James typed a reply that accepted the offer (its message id is recorded)',
   )
   const outcome = JSON.parse(accepted.result_json)
   const received = receivedBefore(updates, accepted.created_at)
@@ -809,7 +903,12 @@ async function moment2() {
 
 async function moment3() {
   const { day } = r.env
-  const card = await customerCard('Moment 3', 'ALEX (customer account 1)', lines.beardTrim)
+  const card = await customerCard(
+    'Moment 3',
+    'ALEX (customer account 1)',
+    lines.beardTrim,
+    'alex',
+  )
   const m = (r.moment3 = { requestId: card.requestId })
   check(
     card.request.service_id === 'beard_trim' &&
@@ -820,9 +919,16 @@ async function moment3() {
   await shot('m3-card', 'Moment 3: the card shows 17:00 free', {
     changed: false,
     required: true,
+    since: card.shownIndex,
   })
   stopIfFinishing()
   const block = await blockSlot(calendar, shop, `${day} 17:00`, 30, String(Date.now()))
+  created.push({
+    id: block.id,
+    startUtc: block.startUtc,
+    endUtc: block.endUtc,
+    summary: block.summary,
+  })
   m.blockId = block.id
   m.blockStartUtc = block.startUtc
   m.blockEndUtc = block.endUtc
@@ -871,7 +977,7 @@ async function moment3() {
   await shot(
     'm3-slot-taken',
     'Moment 3: nothing sent; the card says the slot was just taken and offers the next opening',
-    { required: true },
+    { required: true, since: sim.entries.indexOf(again.entry) },
   )
   m.after = {
     sent: sentInChat(chatId),
@@ -922,13 +1028,30 @@ async function reconnect() {
   rc.restartedAt = iso(restartedAt)
   rc.listeningS = Math.round((await startServer()) / 10) / 100
   mark('server restarted')
-  const back = await waitLine(
-    'screen=root after the restart',
-    /\[chairside\] screen=root/,
+  // Back means a fresh snapshot from the restarted server, with root on
+  // screen: a root drawn from the cache on reconnect is not enough.
+  const fresh = await waitLine(
+    'a fresh state from the restarted server',
+    /\[chairside\] state seq=\d+/,
     restartFrom,
     60_000,
   )
-  rc.backS = secondsBetween(restartedAt, back.at)
+  const back = await waitFor(
+    'root on screen after the restart',
+    15_000,
+    async () => {
+      await poll()
+      const last = lastIndexOf(sim.entries, (entry) =>
+        /\[chairside\] screen=/.test(entry.message),
+      )
+      return last >= restartFrom &&
+        /screen=root$/.test(sim.entries[last].message)
+        ? { index: Math.max(last, sim.entries.indexOf(fresh.entry)) }
+        : undefined
+    },
+    100,
+  )
+  rc.backS = secondsBetween(restartedAt, entryTime(sim.entries[back.index]))
   const after = sim.entries.slice(from).map((entry) => entry.message)
   rc.links = after
     .filter((message) => /\] link=/.test(message))
@@ -937,9 +1060,17 @@ async function reconnect() {
     /screen=pair|paired|pair code issued|device token rejected/.test(message),
   )
   check(rc.noRepair, 'the restart did not ask to pair again')
-  await shot('reconnect-root', 'server back: root again, no pairing')
+  await shot('reconnect-root', 'server back: root again, no pairing', {
+    required: true,
+    since: back.index,
+  })
   if (options.finalDm) {
-    await customerCard('post-restart', 'JAMES (customer account 2)', lines.final)
+    await customerCard(
+      'post-restart',
+      'JAMES (customer account 2)',
+      lines.final,
+      'james',
+    )
     rc.finalCard = true
     check(true, 'a DM after the restart opened a card')
     await shot('reconnect-card', 'a DM after the restart still opens a card', {
@@ -957,26 +1088,35 @@ async function cleanup() {
     r.cleanup = `skipped (--keep-demo)${pending}`
     return
   }
-  const removed = await resetDemo(calendar, shop, DateTime.now())
-  let block = ''
-  const m3 = r.moment3
-  if (m3?.blockId && !removed.some((event) => event.id === m3.blockId)) {
-    // Outside the reset window: delete it only while it is still the untouched
-    // demo block; a failed delete fails the cleanup instead of hiding.
-    const event = await calendar.getEvent(m3.blockId)
+  // Only what this run created, and only while it is unchanged: a demo event
+  // someone edited (summary or time) may have become a real appointment.
+  let removed = 0
+  const kept = []
+  for (const made of created) {
+    const event = await calendar.getEvent(made.id)
+    if (!event) continue
     if (
-      event &&
       isDemoEvent(event) &&
-      sameInstant(event.startUtc, m3.blockStartUtc) &&
-      sameInstant(event.endUtc, m3.blockEndUtc)
+      event.summary === made.summary &&
+      sameInstant(event.startUtc, made.startUtc) &&
+      sameInstant(event.endUtc, made.endUtc)
     ) {
-      await calendar.deleteEvent(m3.blockId)
-      block = ' and the Moment 3 block'
-    } else if (event) {
-      block = '; the Moment 3 block was changed after the run, so it stays'
+      await calendar.deleteEvent(made.id) // a failure fails the cleanup
+      removed++
+    } else {
+      kept.push(made.id)
     }
   }
-  r.cleanup = `removed ${removed.length} demo event(s)${block}; the Moment 1 and 2 bookings stay${pending}`
+  r.cleanup = `removed this run's ${removed} demo event(s) (the seeded appointments and the Moment 3 block)${kept.length ? `; ${kept.length} changed after the run and stay` : ''}; the Moment 1 and 2 bookings stay${pending}`
+}
+
+/** Error text for the local diagnosis file: no child-process output, redacted. */
+function diagnosis(error) {
+  const text = String(error.stack ?? error)
+    .split('\n')
+    .filter((line) => !line.startsWith('  | '))
+    .join('\n')
+  return `${redact(text)}\n`
 }
 
 /** A failed run's report: only in the git-ignored run folder, never over the public evidence. */
@@ -984,58 +1124,80 @@ function writeFailReport(error) {
   mkdirSync(runDir, { recursive: true })
   writeFileSync(join(runDir, 'report.md'), renderReport(r))
   writeFileSync(join(runDir, 'report.json'), `${JSON.stringify(r, null, 2)}\n`)
-  // The full error (child output included) stays local in the git-ignored
-  // folder, and is still redacted: child output can carry tokens or ids.
-  if (error) {
-    writeFileSync(
-      join(runDir, 'error.txt'),
-      `${redact(String(error.stack ?? error))}\n`,
-    )
-  }
+  if (error) writeFileSync(join(runDir, 'error.txt'), diagnosis(error))
   say(
     'FAIL report: docs/evidence/live-smoke-run/report.md (git-ignored); the last passing evidence is untouched',
   )
 }
 
+const PUBLIC_FILE = /^live-smoke(?:-\d+-.+\.png|\.md|\.json)$/
+
 /**
- * A pass replaces the public evidence: new screenshots move in first (a rename
- * replaces a same-named file), then the report, and only then are screenshots
- * the new run did not produce removed.
+ * A pass replaces the public evidence as one set. The report is staged in
+ * the run folder, the previous set is backed up, and any error while
+ * switching restores the previous set, so two runs never mix.
  */
 function writePassEvidence() {
-  const kept = new Set()
   for (const s of r.shots) {
-    if (!s.file) continue
-    const name = `live-smoke-${s.file}`
-    renameSync(join(runDir, s.file), join(evidenceDir, name))
-    s.path = `docs/evidence/${name}`
-    kept.add(name)
+    if (s.file) s.path = `docs/evidence/live-smoke-${s.file}`
   }
-  writeFileSync(join(evidenceDir, 'live-smoke.md'), renderReport(r))
-  writeFileSync(
-    join(evidenceDir, 'live-smoke.json'),
-    `${JSON.stringify(r, null, 2)}\n`,
-  )
-  for (const file of readdirSync(evidenceDir)) {
-    if (/^live-smoke-\d+-.+\.png$/.test(file) && !kept.has(file)) {
+  writeFileSync(join(runDir, 'live-smoke.md'), renderReport(r))
+  writeFileSync(join(runDir, 'live-smoke.json'), `${JSON.stringify(r, null, 2)}\n`)
+  const backup = join(runDir, 'previous')
+  mkdirSync(backup, { recursive: true })
+  const previous = readdirSync(evidenceDir).filter((file) => PUBLIC_FILE.test(file))
+  for (const file of previous) copyFileSync(join(evidenceDir, file), join(backup, file))
+  try {
+    for (const file of previous) {
       rmSync(join(evidenceDir, file), { force: true, maxRetries: 3 })
     }
+    for (const s of r.shots) {
+      if (s.file) renameSync(join(runDir, s.file), join(evidenceDir, `live-smoke-${s.file}`))
+    }
+    renameSync(join(runDir, 'live-smoke.md'), join(evidenceDir, 'live-smoke.md'))
+    renameSync(join(runDir, 'live-smoke.json'), join(evidenceDir, 'live-smoke.json'))
+  } catch (error) {
+    for (const file of readdirSync(evidenceDir)) {
+      if (PUBLIC_FILE.test(file)) rmSync(join(evidenceDir, file), { force: true, maxRetries: 3 })
+    }
+    for (const file of previous) copyFileSync(join(backup, file), join(evidenceDir, file))
+    throw error
   }
   rmSync(runDir, { recursive: true, force: true, maxRetries: 3 })
   say('evidence: docs/evidence/live-smoke.md and live-smoke.json')
 }
 
-/** On a pass, every card the glasses showed must be one this run asked for. */
-function onlyOwnCards() {
-  const foreign = new Set()
+/**
+ * On a pass, the public screenshots may show this run's customers only: no
+ * other request's card, no receipt for another action, and (for the root
+ * screen's next bookings) no real appointment on today's calendar.
+ */
+async function onlyOwnScreens() {
+  const foreignCards = new Set()
+  const foreignReceipts = new Set()
+  const allowedUpdates = new Set(
+    r.moment2?.offerId ? [`offer:${r.moment2.offerId}`] : [],
+  )
   for (const entry of sim?.entries ?? []) {
-    const match = /card shown req=(\S+)/.exec(entry.message)
-    if (match && !ownRequests.has(match[1])) foreign.add(match[1])
+    const card = /card shown req=(\S+)/.exec(entry.message)
+    if (card && !ownRequests.has(card[1])) foreignCards.add(card[1])
+    const update = /receipt title=Update(?: key=(\S+))?$/.exec(entry.message)
+    if (update && !allowedUpdates.has(update[1])) foreignReceipts.add(update[1] ?? 'unnamed')
   }
   note(
-    foreign.size === 0,
-    `only this run's requests appeared on the glasses (others: ${foreign.size})`,
+    foreignCards.size === 0 && foreignReceipts.size === 0,
+    `only this run's requests and receipts appeared on the glasses (other cards: ${foreignCards.size}, other updates: ${foreignReceipts.size})`,
   )
+  try {
+    const today = DateTime.now().setZone(shop.timezone).toISODate()
+    const real = (await dayEvents(today)).filter((event) => !isDemoEvent(event))
+    note(
+      real.length === 0,
+      `today's calendar still holds demo events only, so the root screen named no real customer (non-demo: ${real.length})`,
+    )
+  } catch (calendarError) {
+    note(false, `today's calendar could be checked (${redact(String(calendarError.message ?? calendarError))})`)
+  }
 }
 
 async function finishOnce(error) {
@@ -1046,17 +1208,19 @@ async function finishOnce(error) {
   // Stop the server, Vite and the simulator first, so no tap can still fire
   // while cleanup removes the Busy block.
   await stopAll()
-  if (!error && sim) onlyOwnCards()
-  r.ok = !error && r.checks.length > 0 && r.checks.every((c) => c.ok)
+  if (!error && sim && calendar) await onlyOwnScreens()
   if (started && calendar) {
     try {
       await cleanup()
     } catch (cleanupError) {
       r.cleanup = `failed: ${redact(String(cleanupError.message ?? cleanupError))}`
+      note(false, 'cleanup removed the demo events this run created')
     }
   }
   db?.close()
   r.finishedAt = new Date().toISOString()
+  // The verdict comes last, right before anything is published.
+  r.ok = !error && r.checks.length > 0 && r.checks.every((c) => c.ok)
   if (started) {
     try {
       if (r.ok) writePassEvidence()
