@@ -4,7 +4,7 @@
 
 [ON SCREEN] Start on the title card. Bring up the G2 simulator on the left, the customer's Telegram thread at top right and Google Calendar at bottom right.
 
-David works alone in his barbershop in Dubai. He's halfway through a haircut, clippers in hand, when Alex messages him. His phone stays in his pocket. He reads each request on his Even G2 glasses and answers with his Even Realities R1 ring, without typing. We're showing his view in the Even simulator.
+David works alone in his barbershop in Dubai. He's halfway through a haircut, clippers in hand, when Alex messages him. With Chairside, David never has to touch his phone. He reads each request on his Even G2 glasses and answers with a press of his Even Realities R1 ring. We're showing his view in the Even simulator.
 
 [ON SCREEN] Alex asks, "Can I get a haircut Saturday 5 Dec at 3pm?" Show "Alex · Haircut" and "Sat 5 Dec · 15:00 · ● free (45 min)". After the press, hold on his chat and the calendar event "Chairside · Alex · Haircut" from 15:00 to 15:45.
 
@@ -20,9 +20,9 @@ James wants a skin fade at three, too. Alex's already booked, so David's card hi
 
 Alex is back. He asks for a beard trim at five in the same chat. David's card shows five is free. What if someone takes that slot while David's reading? I'll mark five to five thirty as Busy on his calendar. When David presses the ring to book, Chairside checks again and sees the block. The last line in Alex's chat is still his question, and there's no beard trim on the calendar. David's card says "Just taken · nothing sent" and gives him five forty-five to offer.
 
-[ON SCREEN] Show the stopwatch comparison for the haircut, from the moment Alex sends his DM until he sees David's confirmation with the event already saved.
+[ON SCREEN] End on the glasses' home screen, with both bookings in the calendar.
 
-On a phone, you have to switch from Alex's chat to the calendar and back. That booking takes {{phone_workflow_seconds}} seconds. In the G2 simulator it takes {{glasses_workflow_seconds}} seconds. Both clocks stop when Alex can read his confirmation. David can keep talking to the person in his chair. I'd start with solo barbers in Telegram-heavy markets like Dubai, where the next booking can come straight from a chat they already have.
+That's three requests, and David never touched his phone. He didn't put the clippers down or turn away from the person in his chair. It saves him about a minute a booking, too: no unlocking the phone, no switching from the chat to the calendar and back, no typing a reply. But the real win is that his hands never leave his work. I'd start with solo barbers in Telegram-heavy markets like Dubai, where the next booking can come straight from a chat they already have.
 
 ## Q&A prep
 
