@@ -251,6 +251,10 @@ export class ChairsideApp {
         this.p.log(
           `receipt title=${view.title}${view.key ? ` key=${view.key}` : ''}`,
         )
+        // Its 2 s start once it is on the glasses: a slow bridge must not let
+        // a receipt time out before anyone could read it.
+        if (this.view === view)
+          this.setTimer('receipt', RECEIPT_MS, () => this.advance())
       }
       if (card) {
         const key = `${card.requestId}:${card.version}`
@@ -532,6 +536,9 @@ export class ChairsideApp {
 
   private onFrame(frame: ServerFrame): void {
     if (frame.type === 'state') {
+      // A fresh snapshot from the server (on connect and on refresh), as
+      // opposed to the cached root shown while reconnecting.
+      this.p.log(`state seq=${frame.seq}`)
       this.lastSeq = frame.seq
       this.root = frame.root
       const test = frame.root.mode === 'test'
@@ -557,6 +564,7 @@ export class ChairsideApp {
           this.cards = this.cards.filter((c) => c.requestId !== frame.requestId)
           break
         case 'receipt': {
+          this.pruneKeys()
           const key = frame.idempotencyKey
           if (key !== undefined && this.inflight?.key === key) {
             // This device's action, answered by broadcast before HTTP: keep
@@ -587,6 +595,14 @@ export class ChairsideApp {
         this.ownKeys.has(idempotencyKey) || this.shownKeys.has(idempotencyKey)
       )
     return this.ownAction(requestId)
+  }
+
+  /** Forgets action keys older than KEY_MEMORY_MS, also on a device that never taps. */
+  private pruneKeys(): void {
+    const now = this.p.now()
+    for (const keys of [this.ownKeys, this.shownKeys])
+      for (const [key, at] of keys)
+        if (now - at >= KEY_MEMORY_MS) keys.delete(key)
   }
 
   private ownAction(requestId: string | undefined): boolean {
@@ -682,8 +698,9 @@ export class ChairsideApp {
   ) {
     this.view = { name: 'receipt', ...receipt }
     if (receipt.key) this.shownKeys.set(receipt.key, this.p.now())
+    // The timer starts when this receipt is drawn (see render()).
+    this.clearTimer('receipt')
     this.render()
-    this.setTimer('receipt', RECEIPT_MS, () => this.advance())
   }
 
   private advance(): void {
@@ -757,9 +774,7 @@ export class ChairsideApp {
       const now = this.p.now()
       for (const [id, at] of this.recent)
         if (now - at >= OWN_RECEIPT_WINDOW_MS) this.recent.delete(id)
-      for (const keys of [this.ownKeys, this.shownKeys])
-        for (const [key, at] of keys)
-          if (now - at >= KEY_MEMORY_MS) keys.delete(key)
+      this.pruneKeys()
       if (answered) {
         this.recent.set(requestId, now)
         this.ownKeys.set(idempotencyKey, now)
@@ -778,25 +793,27 @@ export class ChairsideApp {
     if (executed !== idempotencyKey) this.ownKeys.set(executed, this.p.now())
     this.receipts = this.receipts.filter((r) => r.key !== executed)
     this.p.log(`action result req=${requestId} status=${response.status}`)
-    this.applyResult(card, response, this.shownKeys.has(executed))
+    this.applyResult(card, response, executed)
   }
 
+  /** `executed` is the key of the action that ran (another device's, on a replay). */
   private applyResult(
     card: Card,
     response: ActionResponse,
-    alreadyShown = false,
+    executed?: string,
   ): void {
     const { requestId } = card
     const who = card.lines[0]
     if (response.status === 'ok') {
       this.cards = this.cards.filter((c) => c.requestId !== requestId)
-      if (alreadyShown) {
+      if (executed !== undefined && this.shownKeys.has(executed)) {
         // Another device's identical tap: its receipt is already shown.
         this.view = { name: 'root' }
         this.reconcile()
         return
       }
       this.showReceipt({
+        key: executed,
         title: 'Done',
         text: response.receipt ?? '● Done',
         detail: who,

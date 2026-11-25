@@ -524,7 +524,41 @@ describe('cards', () => {
     expect(env.page().screen).toBe('root')
     expect(
       env.logs.filter((line) => line.startsWith('receipt title=')),
-    ).toEqual(['receipt title=Done'])
+    ).toEqual(['receipt title=Done key=other-device-key-0001'])
+  })
+
+  it('counts a receipt\'s 2 s from when the glasses draw it, not from when it was queued', async () => {
+    const env = await paired()
+    env.live().onFrame({ type: 'card.upsert', seq: 2, card }, 'socket')
+    await settle()
+    // The bridge is slow: the next draw hangs until we release it.
+    const show = env.platform.show
+    let release: () => void = () => {}
+    env.platform.show = (page, menu) =>
+      new Promise<void>((resolve) => {
+        release = () => {
+          void show(page, menu).then(resolve)
+        }
+      })
+    env.api.action.mockResolvedValue({
+      httpStatus: 200,
+      response: { status: 'ok', receipt: '● Booked Sat 28 Nov 15:00' },
+    })
+    env.app.handleEvent(listClick(0))
+    await settle()
+    // Long past 2 s, but the receipt was never drawn: it must still be pending.
+    await vi.advanceTimersByTimeAsync(RECEIPT_MS * 3)
+    expect(env.logs.some((line) => line.startsWith('receipt title='))).toBe(false)
+    env.platform.show = show
+    release()
+    await settle()
+    expect(
+      env.logs.some((line) => line.startsWith('receipt title=Done key=')),
+    ).toBe(true)
+    expect(env.page().screen).toBe('receipt')
+    await vi.advanceTimersByTimeAsync(RECEIPT_MS)
+    await settle()
+    expect(env.page().screen).toBe('root')
   })
 
   it('ignores deltas older than the last state', async () => {
