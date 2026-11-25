@@ -141,6 +141,7 @@ export class ChairsideApp {
   private renderQueued = false
   private ready = false
   private screenLogged?: ScreenName
+  private receiptLogged?: View
   private closed = false
 
   constructor(
@@ -212,6 +213,7 @@ export class ChairsideApp {
     this.rendering = this.rendering.then(async () => {
       this.renderQueued = false
       if (this.closed) return
+      const view = this.view
       const { page, card } = this.page()
       try {
         await this.p.show(page, this.menu())
@@ -233,6 +235,12 @@ export class ChairsideApp {
       if (page.screen !== this.screenLogged) {
         this.screenLogged = page.screen
         this.p.log(`screen=${page.screen}`)
+      }
+      // Once per receipt, after it is drawn: two receipts in a row log one
+      // screen change. Titles are fixed words, never customer text.
+      if (view.name === 'receipt' && view !== this.receiptLogged) {
+        this.receiptLogged = view
+        this.p.log(`receipt title=${view.title}`)
       }
       if (card) {
         const key = `${card.requestId}:${card.version}`
@@ -687,6 +695,7 @@ export class ChairsideApp {
     const idempotencyKey = this.p.randomKey(16)
     this.ownKeys.set(idempotencyKey, this.p.now())
     let response: ActionResponse
+    let answered = false
     try {
       ;({ response } = await this.p.api.action(this.token, {
         requestId,
@@ -694,6 +703,7 @@ export class ChairsideApp {
         actionId: action.id,
         idempotencyKey,
       }))
+      answered = true
     } catch (error) {
       this.inflight = undefined
       this.notes.delete(requestId)
@@ -715,8 +725,14 @@ export class ChairsideApp {
         if (now - at >= OWN_RECEIPT_WINDOW_MS) this.recent.delete(id)
       for (const [key, at] of this.ownKeys)
         if (now - at >= OWN_RECEIPT_WINDOW_MS) this.ownKeys.delete(key)
-      this.recent.set(requestId, now)
-      this.ownKeys.set(idempotencyKey, now)
+      if (answered) {
+        this.recent.set(requestId, now)
+        this.ownKeys.set(idempotencyKey, now)
+      } else {
+        // No answer reached the glasses: the server's receipt frame for this
+        // action is now the only news of what happened, so let it show.
+        this.ownKeys.delete(idempotencyKey)
+      }
     }
     this.inflight = undefined
     this.notes.delete(requestId)

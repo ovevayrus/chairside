@@ -416,9 +416,39 @@ describe('cards', () => {
     env.app.handleEvent(listClick(0))
     await settle()
     expect(env.logs).toContain('action result req=req-1 status=unconfirmed')
+    expect(env.logs).toContain('receipt title=Not confirmed')
     expect(env.text('title')).toBe('NOT CONFIRMED')
     await vi.advanceTimersByTimeAsync(RECEIPT_MS)
     expect(env.page().screen).toBe('card')
+  })
+
+  it("shows the server's receipt for an action whose answer was lost", async () => {
+    const env = await paired()
+    env.live().onFrame({ type: 'card.upsert', seq: 2, card }, 'socket')
+    await settle()
+    env.api.action.mockRejectedValue(new ApiError('timeout'))
+    env.app.handleEvent(listClick(0))
+    await settle()
+    expect(env.logs).toContain('action result req=req-1 status=unconfirmed')
+    // The booking went through on the server; its frames are the only news.
+    env
+      .live()
+      .onFrame({ type: 'card.remove', seq: 3, requestId: 'req-1' }, 'socket')
+    env.live().onFrame(
+      {
+        type: 'receipt',
+        seq: 4,
+        requestId: 'req-1',
+        idempotencyKey: sentKey(env),
+        text: '● Booked Sat 28 Nov 15:00',
+      },
+      'socket',
+    )
+    await vi.advanceTimersByTimeAsync(RECEIPT_MS)
+    await settle()
+    expect(env.logs).toContain('receipt title=Update')
+    expect(env.page().screen).toBe('receipt')
+    expect(env.text('message')).toContain('● Booked Sat 28 Nov 15:00')
   })
 
   it('ignores deltas older than the last state', async () => {
