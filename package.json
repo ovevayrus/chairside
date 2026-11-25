@@ -24,7 +24,10 @@
     "demo:reset": "tsx scripts/demo-reset.ts",
     "smoke:live": "node scripts/not-implemented.mjs smoke:live",
     "spike:telegram": "tsx scripts/spike-telegram.ts",
-    "spike:calendar": "tsx scripts/spike-calendar.ts"
+    "spike:calendar": "tsx scripts/spike-calendar.ts",
+    "start:server": "tsx --env-file-if-exists=apps/server/.env apps/server/src/index.ts",
+    "start:glasses": "npm run dev -w @chairside/glasses",
+    "start:simulator": "evenhub-simulator http://localhost:5173"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
