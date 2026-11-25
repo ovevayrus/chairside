@@ -27,7 +27,7 @@ Keep each ring press and its result together. Leave a beat for the viewer to rea
 
 ## Narration
 
-Allow about 2:45 for speech. Pause after each press so viewers can read what happens.
+Allow about 2:45 for speech. Each **(press)** marks the moment a ring press happens on screen: pause there, let the result show, then go on.
 
 **0:00–0:12**
 
@@ -35,19 +35,19 @@ David's giving a haircut, scissors in one hand, comb in the other. The Even Hub 
 
 **0:12–0:50**
 
-On his phone, Alex asks David for a haircut at three on Saturday. This is their usual Telegram chat. About three seconds later, David sees the request on his glasses. His phone stays in his pocket. Chairside's already checked his Google Calendar for the full forty-five-minute haircut. "Book and reply" is highlighted. One press on his ring says yes to three. Look at David's calendar, bottom right. Chairside checks again and books Alex from three to three forty-five. Alex gets the confirmation from David's own Telegram account, right under his question.
+On his phone, Alex asks David for a haircut at three on Saturday. This is their usual Telegram chat. About three seconds later, David sees the request on his glasses. His phone stays in his pocket. Chairside's already checked his Google Calendar for the full forty-five-minute haircut. "Book and reply" is highlighted. One press on his ring says yes to three. **(press)** Look at David's calendar, bottom right. Chairside checks again and books Alex from three to three forty-five. Alex gets the confirmation from David's own Telegram account, right under his question.
 
 **0:50–1:40**
 
-James asks for a skin fade at three that same Saturday. Alex has that slot, and a skin fade takes forty-five minutes too. Chairside leaves five minutes between appointments and offers times on the quarter hour. That makes four the next opening. It's already highlighted on David's glasses. He presses his ring once and James gets the offer from David's account. Four is still open on the calendar while James reads the offer on his phone. James types "yes" to the time David just offered. Chairside checks four again, books James until four forty-five and confirms in his chat. David's glasses tell him James accepted. He doesn't have to press again.
+James asks for a skin fade at three that same Saturday. Alex has that slot, and a skin fade takes forty-five minutes too. Chairside leaves five minutes between appointments and offers times on the quarter hour. That makes four the next opening. It's already highlighted on David's glasses. He presses his ring once **(press)** and James gets the offer from David's account. Four is still open on the calendar while James reads the offer on his phone. James types "yes" to the time David just offered. Chairside checks four again, books James until four forty-five and confirms in his chat. David's glasses tell him James accepted. He doesn't have to press again.
 
 **1:40–2:25**
 
-Alex asks for a beard trim at five in the same chat. David's card shows he's free for the twenty-minute trim. What if someone takes that slot while David's reading? I'll mark five to five thirty as Busy on his calendar, bottom right. When David presses his ring to book, Chairside checks the calendar again. His glasses say "Just taken · nothing sent" and highlight the next opening, five forty-five. Alex's question is still the last message. There's no beard trim on the calendar. David can swipe up or down on his ring or a temple touchpad for other times or "Not now." A double press leaves the card waiting.
+Alex asks for a beard trim at five in the same chat. David's card shows he's free for the twenty-minute trim. What if someone takes that slot while David's reading? I'll mark five to five thirty as Busy on his calendar, bottom right. When David presses his ring to book **(press)**, Chairside checks the calendar again. His glasses say "Just taken · nothing sent" and highlight the next opening, five forty-five. Alex's question is still the last message. There's no beard trim on the calendar. David can swipe up or down on his ring or a temple touchpad for other times or "Not now." A double press leaves the card waiting. **(double press)**
 
 **2:25–2:50**
 
-I timed Alex's haircut booking by hand on my phone. From his question to David's confirmation, with the appointment saved, that's {{phone_workflow_seconds}} seconds. The live run with the glasses takes {{glasses_workflow_seconds}} seconds. From David pressing his ring to the reply in Alex's chat, it's {{tap_to_reply_seconds}} seconds.
+I timed Alex's haircut booking by hand on my phone. From his question to David's confirmation, with the appointment saved, that's {{phone_workflow_seconds}} seconds. The live run with the glasses takes {{glasses_workflow_seconds}} seconds. From David pressing his ring **(press, replayed)** to the reply in Alex's chat, it's {{tap_to_reply_seconds}} seconds.
 
 **2:50–3:00**
 
