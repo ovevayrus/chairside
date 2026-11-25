@@ -98,6 +98,8 @@ export interface Acceptance {
   response: ActionResponse
   /** False for a replay: nothing ran, so there is nothing to publish. */
   changed: boolean
+  /** The acceptance's action key, `offer:<offerId>`. */
+  idempotencyKey: string
 }
 
 /**
@@ -120,6 +122,7 @@ export async function acceptOffer(
       requestId: previous.request_id,
       response: replay(previous),
       changed: false,
+      idempotencyKey: key,
     }
   const request = store.get(offer.request_id)
   if (offer.status !== 'active' || !request) return undefined
@@ -159,6 +162,7 @@ export async function acceptOffer(
     requestId: row.id,
     response,
     changed: true,
+    idempotencyKey: key,
   })
   if (store.replyBlock(row))
     return ran(

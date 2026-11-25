@@ -17,7 +17,12 @@ export class ActionExecutor {
   async execute(input: ActionRequest): Promise<ActionResponse> {
     const outcome = await this.ctx.store.withLock(() => this.run(input))
     if (outcome.changed)
-      await publish(this.ctx, input.requestId, outcome.response)
+      await publish(
+        this.ctx,
+        input.requestId,
+        outcome.response,
+        input.idempotencyKey,
+      )
     return outcome.response
   }
 

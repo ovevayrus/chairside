@@ -37,11 +37,12 @@ export function replay(row: ActionRow): ActionResponse {
   return { status: 'error', receipt: 'Action in progress · check status' }
 }
 
-/** Pushes an action's outcome to the shop's devices. */
+/** Pushes an action's outcome to the shop's devices, naming the action by its key. */
 export async function publish(
   ctx: ActionContext,
   requestId: string,
   response: ActionResponse,
+  idempotencyKey: string,
 ): Promise<void> {
   const { store, hub } = ctx
   if (response.card)
@@ -52,6 +53,7 @@ export async function publish(
     hub.broadcast(store.shopId, {
       type: 'receipt',
       requestId,
+      idempotencyKey,
       text: response.receipt,
     })
   await hub.broadcastState(store.shopId)

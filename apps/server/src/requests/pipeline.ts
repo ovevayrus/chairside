@@ -94,7 +94,12 @@ export function createRequestPipeline(options: PipelineOptions) {
       dateIso: info.lastCustomerMsgAt,
     })
     if (outcome?.changed)
-      await publish(ctx, outcome.requestId, outcome.response)
+      await publish(
+        ctx,
+        outcome.requestId,
+        outcome.response,
+        outcome.idempotencyKey,
+      )
     else await hub.broadcastState(shopId)
   }
 
@@ -265,7 +270,12 @@ export function createRequestPipeline(options: PipelineOptions) {
           (await acceptOffer(ctx, offer, { connectionId, messageIds: [] }))
         if (!outcome) return false
         if (outcome.changed)
-          await publish(ctx, outcome.requestId, outcome.response)
+          await publish(
+            ctx,
+            outcome.requestId,
+            outcome.response,
+            outcome.idempotencyKey,
+          )
         return true
       })
     } finally {

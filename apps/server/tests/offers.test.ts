@@ -207,6 +207,8 @@ describe('offer acceptance', () => {
     expect(broadcast).toHaveBeenCalledWith(tenant, {
       type: 'receipt',
       requestId: offer.request_id,
+      // The acceptance's own key: the glasses that sent the offer still show it.
+      idempotencyKey: `offer:${offer.id}`,
       text: '● Omar accepted · Booked Sat 5 Dec 16:00',
     })
     expect(offers(f)[0]?.status).toBe('accepted')
@@ -412,6 +414,7 @@ describe('offer acceptance', () => {
     expect(broadcast).toHaveBeenCalledWith(tenant, {
       type: 'receipt',
       requestId: offer.request_id,
+      idempotencyKey: `offer:${offer.id}`,
       text: 'Omar said yes · slot just taken',
     })
     // One tap offers the next opening and Omar's next "yes" books it.

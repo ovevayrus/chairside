@@ -54,6 +54,10 @@ const SequencedMessageSchema = z.discriminatedUnion('type', [
     seq,
     text: receipt,
     requestId: requestId.optional(),
+    // The action this is the outcome of. A device skips receipts for its own
+    // actions (it already showed the HTTP answer) and shows everything else,
+    // such as a customer's "yes" to an offer it has just sent.
+    idempotencyKey: z.string().min(8).max(128).optional(),
   }),
   z.object({
     type: z.literal('error'),

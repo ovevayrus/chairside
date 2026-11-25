@@ -121,6 +121,8 @@ export class ChairsideApp {
     { version: number; text: string; alert: boolean }
   >()
   private readonly recent = new Map<string, number>()
+  /** Idempotency keys of this device's own actions, and when each last changed. */
+  private readonly ownKeys = new Map<string, number>()
   /** First line (who · what) of each card shown, for the "closed" receipt. */
   private readonly shownLines = new Map<string, string>()
   private receipts: { title: string; text: string }[] = []
@@ -537,7 +539,7 @@ export class ChairsideApp {
           this.cards = this.cards.filter((c) => c.requestId !== frame.requestId)
           break
         case 'receipt':
-          if (!this.ownAction(frame.requestId))
+          if (!this.ownReceipt(frame.requestId, frame.idempotencyKey))
             this.receipts.push({ title: 'Update', text: frame.text })
           break
         case 'error':
@@ -546,6 +548,17 @@ export class ChairsideApp {
       }
     }
     this.reconcile()
+  }
+
+  /**
+   * True when a receipt frame is the outcome of this device's own action,
+   * which it already showed from the HTTP answer. A frame that names its
+   * action is matched by key, so a customer's "yes" to an offer sent from
+   * here a moment ago still shows; an unnamed one falls back to the request.
+   */
+  private ownReceipt(requestId?: string, idempotencyKey?: string): boolean {
+    if (idempotencyKey !== undefined) return this.ownKeys.has(idempotencyKey)
+    return this.ownAction(requestId)
   }
 
   private ownAction(requestId: string | undefined): boolean {
@@ -669,13 +682,17 @@ export class ChairsideApp {
     })
     this.render()
     this.p.log(`action sent req=${requestId} action=${action.id}`)
+    // Known before the request goes out: the server's receipt frame for it
+    // can arrive before the HTTP answer.
+    const idempotencyKey = this.p.randomKey(16)
+    this.ownKeys.set(idempotencyKey, this.p.now())
     let response: ActionResponse
     try {
       ;({ response } = await this.p.api.action(this.token, {
         requestId,
         version: card.version,
         actionId: action.id,
-        idempotencyKey: this.p.randomKey(16),
+        idempotencyKey,
       }))
     } catch (error) {
       this.inflight = undefined
@@ -696,7 +713,10 @@ export class ChairsideApp {
       const now = this.p.now()
       for (const [id, at] of this.recent)
         if (now - at >= OWN_RECEIPT_WINDOW_MS) this.recent.delete(id)
+      for (const [key, at] of this.ownKeys)
+        if (now - at >= OWN_RECEIPT_WINDOW_MS) this.ownKeys.delete(key)
       this.recent.set(requestId, now)
+      this.ownKeys.set(idempotencyKey, now)
     }
     this.inflight = undefined
     this.notes.delete(requestId)

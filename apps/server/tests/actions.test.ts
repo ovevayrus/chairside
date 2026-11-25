@@ -23,7 +23,8 @@ describe('owner actions', () => {
       return send(...args)
     })
     const started = performance.now()
-    const { http, body } = await f.postAction(tap(card))
+    const input = tap(card)
+    const { http, body } = await f.postAction(input)
     expect(http).toBe(200)
     expect(body.status).toBe('ok')
     expect(body.receipt).toBeTruthy()
@@ -55,7 +56,12 @@ describe('owner actions', () => {
     ])
     expect(broadcast).toHaveBeenCalledWith(
       tenant,
-      expect.objectContaining({ type: 'receipt', text: body.receipt }),
+      expect.objectContaining({
+        type: 'receipt',
+        text: body.receipt,
+        // Names the action, so the device that tapped can skip its own receipt.
+        idempotencyKey: input.idempotencyKey,
+      }),
     )
     expect((await f.runtime.hub.snapshot(tenant)).cards).toEqual([])
   })

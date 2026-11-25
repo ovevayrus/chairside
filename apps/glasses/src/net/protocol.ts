@@ -78,7 +78,8 @@ export function asServerFrame(value: unknown): ServerFrame | null {
       return isString(value.requestId) ? (value as ServerFrame) : null
     case 'receipt':
       return isString(value.text) &&
-        (value.requestId === undefined || isString(value.requestId))
+        (value.requestId === undefined || isString(value.requestId)) &&
+        (value.idempotencyKey === undefined || isString(value.idempotencyKey))
         ? (value as ServerFrame)
         : null
     case 'error':

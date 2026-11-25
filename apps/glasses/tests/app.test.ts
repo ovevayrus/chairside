@@ -142,6 +142,15 @@ function setup(stored: Record<string, string> = {}) {
 const settle = () => vi.advanceTimersByTimeAsync(1)
 
 /** A paired app on root with the live channel up. */
+/** The idempotency key the glasses sent with their latest action. */
+function sentKey(env: ReturnType<typeof setup>): string {
+  const call = env.api.action.mock.calls.at(-1) as unknown as
+    | [string, { idempotencyKey: string }]
+    | undefined
+  if (!call) throw new Error('no action was sent')
+  return call[1].idempotencyKey
+}
+
 async function paired(cards: Card[] = [], stored: Record<string, string> = {}) {
   const env = setup({ [KEYS.token]: TOKEN, ...stored })
   await env.app.start()
@@ -250,6 +259,7 @@ describe('cards', () => {
         type: 'receipt',
         seq: 4,
         requestId: 'req-1',
+        idempotencyKey: sentKey(env),
         text: '● Booked Sat 28 Nov 15:00',
       },
       'socket',
@@ -261,6 +271,56 @@ describe('cards', () => {
       env.pages.filter((p) => p.screen === 'receipt').length,
     ).toBeGreaterThan(0)
     expect(env.logs.filter((line) => line === 'screen=receipt')).toHaveLength(1)
+  })
+
+  it("shows a customer's yes to an offer the glasses sent seconds ago", async () => {
+    const env = await paired()
+    env.live().onFrame({ type: 'card.upsert', seq: 2, card }, 'socket')
+    await settle()
+    env.api.action.mockResolvedValue({
+      httpStatus: 200,
+      response: { status: 'ok', receipt: '● Offered Sat 28 Nov 15:15' },
+    })
+    env.app.handleEvent(listClick(1))
+    await settle()
+    expect(env.logs).toContain('action sent req=req-1 action=offer-1')
+    env
+      .live()
+      .onFrame({ type: 'card.remove', seq: 3, requestId: 'req-1' }, 'socket')
+    // The server's frame for the offer itself: already shown, skipped.
+    env.live().onFrame(
+      {
+        type: 'receipt',
+        seq: 4,
+        requestId: 'req-1',
+        idempotencyKey: sentKey(env),
+        text: '● Offered Sat 28 Nov 15:15',
+      },
+      'socket',
+    )
+    // A frame that names no action falls back to the request: also skipped.
+    env.live().onFrame(
+      { type: 'receipt', seq: 5, requestId: 'req-1', text: 'unnamed' },
+      'socket',
+    )
+    await vi.advanceTimersByTimeAsync(RECEIPT_MS)
+    expect(env.page().screen).toBe('root')
+    // Five seconds later the customer says yes: another action, same request.
+    await vi.advanceTimersByTimeAsync(5_000)
+    env.live().onFrame(
+      {
+        type: 'receipt',
+        seq: 6,
+        requestId: 'req-1',
+        idempotencyKey: 'offer:3f2a9c1e-offer-action',
+        text: '● Anna accepted · Booked Sat 28 Nov 15:15',
+      },
+      'socket',
+    )
+    await settle()
+    expect(env.page().screen).toBe('receipt')
+    expect(env.text('message')).toContain('Anna accepted')
+    expect(env.logs.filter((line) => line === 'screen=receipt')).toHaveLength(2)
   })
 
   it('shows the sending state at once and sends a fresh idempotency key for every tap', async () => {
