@@ -43,7 +43,7 @@ James asks for a skin fade at three that same Saturday. Alex has that slot, and 
 
 **1:40–2:25**
 
-Alex reopens his chat with David. He wants a beard trim at five. David's glasses show five is free for the twenty-minute trim. Watch his calendar, bottom right. While he reads, I mark five to five thirty Busy. David presses his ring to book. Chairside rechecks five and sees the block. His glasses say, "Just taken. Nothing sent." Alex's question is still the last message. There's no beard trim on the calendar. Five forty-five is highlighted now. The ring and the touchpads at his temples use the same gestures. David can swipe up or down for other times or "Not now." A double press leaves the card waiting.
+Alex asks for a beard trim at five in the same chat. David's card shows he's free for the twenty-minute trim. What if someone takes that slot while David's reading? I'll mark five to five thirty as Busy on his calendar, bottom right. When David presses his ring to book, Chairside checks the calendar again. His glasses say "Just taken · nothing sent" and highlight the next opening, five forty-five. Alex's question is still the last message. There's no beard trim on the calendar. David can swipe up or down on his ring or a temple touchpad for other times or "Not now." A double press leaves the card waiting.
 
 **2:25–2:50**
 

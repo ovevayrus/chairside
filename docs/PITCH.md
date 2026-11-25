@@ -18,7 +18,7 @@ James wants a skin fade at three, too. Alex's already booked, so David's card hi
 
 [ON SCREEN] Back in his chat with David, Alex asks, "Can you also do a beard trim Saturday 5 Dec at 5pm?" With the card showing 17:00 free, add a 30-minute "Busy" block at 17:00. Simulate the ring press. Hold Alex's chat and the refreshed card side by side. Keep his haircut question and David's confirmation visible above the beard-trim request.
 
-Alex is back. He asks for a beard trim at five in the same chat. David's card shows five is free. While he's reading it, I block off half an hour on his calendar. David presses the ring to book. Chairside checks again. The last line in Alex's chat is still his question, and there's no beard trim on the calendar. David's card says "Just taken · nothing sent" and gives him five forty-five to offer.
+Alex is back. He asks for a beard trim at five in the same chat. David's card shows five is free. What if someone takes that slot while David's reading? I'll mark five to five thirty as Busy on his calendar. When David presses the ring to book, Chairside checks again and sees the block. The last line in Alex's chat is still his question, and there's no beard trim on the calendar. David's card says "Just taken · nothing sent" and gives him five forty-five to offer.
 
 [ON SCREEN] Show the stopwatch comparison for the haircut, from the moment Alex sends his DM until he sees David's confirmation with the event already saved.
 
