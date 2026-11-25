@@ -29,7 +29,7 @@ Allow about 1:45 for speech (about 200 words). Each **(press)** marks the moment
 
 **0:00–0:25**
 
-This is David, halfway through a haircut. His hands are full, and his phone stays in his pocket. He reads bookings on his Even G2 glasses and answers with a press of his R1 ring. Today the simulator stands in for both.
+This is David, halfway through a haircut, with his hands full. With Chairside, David never has to touch his phone. He reads each request on his Even G2 glasses and answers with a press of his Even Realities R1 ring. Today the simulator stands in for both.
 
 **0:25–0:50**
 
