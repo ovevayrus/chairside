@@ -5,6 +5,7 @@ import {
   defaultDay,
   entryTime,
   parseArgs,
+  redact,
   renderReport,
   secondsBetween,
   spokenDay,
@@ -66,6 +67,33 @@ describe('the booking day', () => {
       beard: 'can you also do a beard trim Saturday 5 Dec at 5pm?',
       final: 'Could I come in for a haircut Saturday 5 Dec at 11am?',
     })
+  })
+})
+
+describe('redact', () => {
+  // Built at run time, so the secret scan never sees a token-shaped literal here.
+  const FAKE_TOKEN = ['123456789', `AAH${'x'.repeat(32)}`].join(':')
+
+  it('removes tokens, emails and user or chat ids but keeps message ids and times', () => {
+    expect(
+      redact(`getUpdates failed for ${FAKE_TOKEN} in chat 5123456789`),
+    ).toBe('getUpdates failed for [token] in chat [id]')
+    expect(redact('calendar abc123@group.calendar.google.com notFound')).toBe(
+      'calendar [email] notFound',
+    )
+    expect(redact('group -1001234567890 message 324990 at 2026-11-28T20:00:00.000Z')).toBe(
+      'group [id] message 324990 at 2026-11-28T20:00:00.000Z',
+    )
+  })
+
+  it('also catches the token inside a URL, encoded emails and shorter user ids', () => {
+    expect(
+      redact(`GET https://api.telegram.org/bot${FAKE_TOKEN}/getMe failed`),
+    ).toBe('GET https://api.telegram.org/bot[token]/getMe failed')
+    expect(redact('calendars/abc123%40group.calendar.google.com/events 404')).toBe(
+      'calendars/[email]/events 404',
+    )
+    expect(redact('user 87654321 blocked the bot')).toBe('user [id] blocked the bot')
   })
 })
 

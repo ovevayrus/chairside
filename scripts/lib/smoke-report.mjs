@@ -87,6 +87,18 @@ export function customerLines(isoDay) {
   }
 }
 
+/**
+ * Removes what must not reach public evidence from free text: bot tokens (also
+ * inside a /bot<token>/ URL), email addresses, plain or URL-encoded (calendar
+ * ids look like them), and 7+ digit numbers (Telegram user and chat ids).
+ */
+export function redact(text) {
+  return text
+    .replace(/\d{6,}:[\w-]{30,}/g, '[token]')
+    .replace(/[\w.+-]+(?:@|%40)[\w-]+(?:\.[\w-]+)+/gi, '[email]')
+    .replace(/-?\b\d{7,}\b/g, '[id]')
+}
+
 /** Seconds from one epoch-ms instant to another, to 2 decimals; undefined if either is missing. */
 export function secondsBetween(fromMs, toMs) {
   if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) return undefined
@@ -130,7 +142,7 @@ export function renderReport(r) {
     '',
     `Result: **${r.ok ? 'PASS' : `FAIL${r.error ? `: ${r.error}` : ''}`}**`,
     '',
-    'Recorded: Telegram message ids, Chairside request and action ids, calendar event ids, times, counts and statuses. Not recorded: message text, names, Telegram user or chat ids.',
+    'Recorded: Telegram message ids, Chairside request and action ids, calendar event ids, times, counts and statuses. Not recorded: message text, names, Telegram user or chat ids. Screenshots are taken only when the customer accounts are named Anna or Omar.',
     '',
     '## Timings (Moment 1)',
     '',
@@ -141,6 +153,9 @@ export function renderReport(r) {
     `| Tap to the server holding the action | ${show(m1.tapToServerS)} |`,
     `| Tap to the reply sent (Telegram confirmed it) | ${show(m1.tapToReplyS)} |`,
     `| Tap to the receipt on the glasses | ${show(m1.tapToReceiptS)} |`,
+    `| The whole glasses workflow: DM (Telegram timestamp) to the reply sent, with the card held ${r.env?.pauseS ?? '?'} s before the tap as the owner's reading time | ${show(m1.dmToReplyS)} |`,
+    '',
+    "Server-side times come from the server's own records. Those records do not tie an update to a chat, so a message from another chat at the same moment could shift the received times.",
     '',
     '## Pairing from scratch',
     '',
@@ -165,11 +180,11 @@ export function renderReport(r) {
     '',
     `- Request ${show(m3.requestId && code(m3.requestId))}; the card showed ${show(m3.slotLocal)} free.`,
     `- Foreign block ${show(m3.blockId && code(m3.blockId))} inserted at ${show(m3.blockLocal)} before the tap.`,
-    `- Tap result: ${show(m3.status)}; the card came back as version ${show(m3.versionAfter)}.`,
+    `- Tap result: ${show(m3.status)}; the card came back as version ${show(m3.versionAfter)}, offering ${show(m3.nextLocal)}.`,
     '',
     '| Count | Before the tap | After the tap |',
     '| --- | --- | --- |',
-    `| Messages Chairside has sent in this customer's thread (server records) | ${show(m3.before?.sent)} | ${show(m3.after?.sent)} |`,
+    `| Messages Chairside has sent in this customer's thread (server records; the screen recording shows the thread itself) | ${show(m3.before?.sent)} | ${show(m3.after?.sent)} |`,
     `| Events on ${r.env?.day ?? 'the day'} in Google Calendar, excluding the block | ${show(m3.before?.events)} | ${show(m3.after?.events)} |`,
     '',
     '## Reconnect',

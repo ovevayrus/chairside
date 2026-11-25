@@ -1,6 +1,8 @@
 # Live smoke checklist (US-015)
 
-The live end-to-end run with real Telegram and real Google Calendar. Run it with `npm run smoke:live`: the runner starts the server, Vite and the simulator, taps the glasses and inserts the Moment 3 calendar block itself, and writes everything marked **Record** below to `docs/evidence/live-smoke.md` (plus `live-smoke.json` and `live-smoke-*.png`). The people only send Telegram messages, which the runner prints word for word on lines starting `[smoke] >>>`. It records ids, times, counts and statuses, never message text, names or Telegram user and chat ids.
+The live end-to-end run with real Telegram and real Google Calendar. Run it with `npm run smoke:live`: the runner starts the server, Vite and the simulator, taps the glasses and inserts the Moment 3 calendar block itself. The people only send Telegram messages, which the runner prints word for word on lines starting `[smoke] >>>`. Before every tap it checks that the card is the expected request and that the highlighted action is the expected one, so it never acts on someone else's message.
+
+A passing run writes everything marked **Record** below to `docs/evidence/live-smoke.md` (plus `live-smoke.json` and `live-smoke-*.png`). A failed run leaves that evidence alone and writes its report to `docs/evidence/live-smoke-run/`, which git ignores. The runner records ids, times, counts and statuses, never message text, names or Telegram user and chat ids. The screenshots are public, so it stops unless the customer accounts are named Anna or Omar.
 
 ```sh
 npm run smoke:live                        # booking day: the first Saturday at least 2 days ahead
@@ -16,8 +18,8 @@ npm run smoke:live -- --keep-demo         # keep the seeded events and the block
 
 1. `apps/server/.env` is filled in (Telegram bot token, owner user id, Google service-account path and calendar id, device token pepper) and `DEV_INJECT` is not `1`. Never paste keys into chat.
 2. The Even Hub simulator is installed, and ports 8787, 5173 and 9898 are free.
-3. Telegram Desktop is logged in as the customer accounts, Anna and Omar; one account can play both. In Business mode they message the owner's account, not the bot.
-4. Google Calendar is open in week view on the week of Sat 5 Dec 2026, showing the shop calendar.
+3. Telegram Desktop is logged in as the customer accounts, with Telegram first names Anna and Omar; one account can play both. In Business mode they message the owner's account, not the bot.
+4. Google Calendar is open in week view on the week of Sat 5 Dec 2026, showing the shop calendar. Today the shop calendar holds only demo events: the glasses' root screen shows today's next bookings, and its screenshots are public.
 5. Screen layout: simulator left, Telegram Desktop top right, Google Calendar bottom right.
 6. By hand: start `npm run start:server`, `npm run start:glasses` and `npm run start:simulator` from the repository root. **Record:** start time, server log line showing it is listening.
 

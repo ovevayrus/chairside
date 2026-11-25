@@ -3,11 +3,15 @@
 // Vite and the Even Hub simulator, then walks the people through a pairing from
 // scratch, the three demo moments and a reconnect. The runner taps the glasses
 // and inserts the Moment 3 block itself; the people only send the Telegram
-// messages it prints (lines starting "[smoke] >>>").
+// messages it prints (lines starting "[smoke] >>>"). Before every tap it checks
+// that the card is the expected request and that the highlighted action is the
+// expected one, so it never acts on someone else's message.
 //
-// Evidence: docs/evidence/live-smoke.md, live-smoke.json and live-smoke-*.png.
-// It records ids, times, counts and statuses only: never message text, names,
-// or Telegram user and chat ids.
+// Evidence: a passing run replaces docs/evidence/live-smoke.md, live-smoke.json
+// and live-smoke-*.png. A failed run leaves them alone and writes its report to
+// docs/evidence/live-smoke-run/ (git-ignored). It records ids, times, counts and
+// statuses only: never message text, names, or Telegram user and chat ids, and
+// it takes screenshots only of customer accounts named Anna or Omar.
 //
 //   npm run smoke:live                        booking day: first Saturday >= 2 days ahead
 //   npm run smoke:live -- --day 2026-12-05    another day (free 14:00-18:30, shop open)
@@ -18,14 +22,21 @@
 //
 // SHOP_CONFIG_PATH (relative to apps/server, from the shell or .env) picks the
 // shop, e.g. ../../config/shop.recording.json.
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import {
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { basename, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { setTimeout as delay } from 'node:timers/promises'
 import { DateTime } from 'luxon'
 import {
   blockSlot,
   formatLocal,
+  isDemoEvent,
   resetDemo,
   seedDemoEvents,
 } from '../apps/server/src/demo/index.ts'
@@ -47,6 +58,7 @@ import {
   defaultDay,
   entryTime,
   parseArgs,
+  redact,
   renderReport,
   secondsBetween,
   spokenDay,
@@ -61,9 +73,12 @@ try {
 }
 
 const evidenceDir = join(root, 'docs', 'evidence')
+const runDir = join(evidenceDir, 'live-smoke-run')
 const serverDir = join(root, 'apps', 'server')
 const serverBase = `http://127.0.0.1:${ports.backend}`
 const waitMs = options.waitMin * 60_000
+// Screenshots go into a public repository: only these customer names may appear.
+const PERSONAS = new Set(['anna', 'omar'])
 
 const r = {
   startedAt: new Date().toISOString(),
@@ -82,7 +97,10 @@ let server
 let lastFrame
 let lines
 let started = false
-let finishing = false
+let interrupted = false
+let finishing
+// Requests this run asked for; any other card on the glasses keeps the evidence private.
+const ownRequests = new Set()
 
 const say = (message) => console.log(`[smoke] ${message}`)
 const ask = (message) => console.log(`\n[smoke] >>> ${message}\n`)
@@ -129,6 +147,10 @@ const interval = (startUtc, endUtc) =>
 
 const sameInstant = (a, b) => Boolean(a && b) && Date.parse(a) === Date.parse(b)
 
+const overlaps = (a, b) =>
+  Date.parse(a.startUtc) < Date.parse(b.endUtc) &&
+  Date.parse(a.endUtc) > Date.parse(b.startUtc)
+
 async function dayEvents(day, excludeId) {
   const { startUtc, endUtc } = dayRange(day)
   const events = await calendar.listEvents(startUtc, endUtc)
@@ -155,11 +177,22 @@ function maxUpdateId() {
     .id
 }
 
-/** The first update the server received after `updateId`. */
-function receivedAfter(updateId) {
+function maxMessageRow() {
+  return get('SELECT coalesce(max(rowid), 0) AS id FROM request_messages').id
+}
+
+/**
+ * The last update the server received after `updateId` and no later than
+ * `beforeIso`: the message that completed a request (or an acceptance).
+ * Updates carry no chat, so another chat's message could be picked instead.
+ */
+function receivedBefore(updateId, beforeIso) {
   return get(
-    'SELECT update_id, received_at FROM processed_updates WHERE update_id > ? ORDER BY update_id LIMIT 1',
+    `SELECT update_id, received_at FROM processed_updates
+       WHERE update_id > ? AND received_at <= ?
+       ORDER BY received_at DESC, update_id DESC LIMIT 1`,
     updateId,
+    beforeIso,
   )
 }
 
@@ -174,9 +207,42 @@ function sentInChat(chatId) {
   ).length
 }
 
+/** The card's first action, the one a tap selects: cards list proposals in rowid order. */
+function firstAction(requestId, version) {
+  return get(
+    'SELECT kind, slot_start_utc FROM proposals WHERE request_id = ? AND version = ? ORDER BY rowid LIMIT 1',
+    requestId,
+    version,
+  )
+}
+
+function describeAction(action) {
+  if (!action) return 'none'
+  return action.slot_start_utc
+    ? `${action.kind} ${local(action.slot_start_utc)}`
+    : action.kind
+}
+
 function describeRequest(row) {
   const slot = row.requested_start_utc ? local(row.requested_start_utc) : 'no time'
   return `${row.intent}, ${row.service_id ?? 'no service'}, ${slot}`
+}
+
+/**
+ * Checked in memory only; the name itself is never printed or recorded. The
+ * whole first name must match: cards show all of it.
+ */
+function personaNamed(row) {
+  return PERSONAS.has(
+    String(row.customer_first_name ?? '')
+      .trim()
+      .toLowerCase(),
+  )
+}
+
+/** Stops a step once finishing has begun (Ctrl+C or an error elsewhere). */
+function stopIfFinishing() {
+  if (finishing) throw new Error('stopping: the run is finishing')
 }
 
 // ---- the simulator --------------------------------------------------------
@@ -207,6 +273,16 @@ function waitLine(what, pattern, from, timeoutMs, accept = () => true) {
   )
 }
 
+/** Waits for a receipt with this one-word title (Done, Update) at or after `from`. */
+function waitReceipt(title, from, timeoutMs = 15_000) {
+  return waitLine(
+    `receipt title=${title}`,
+    new RegExp(`\\[chairside\\] receipt title=${title}$`),
+    from,
+    timeoutMs,
+  )
+}
+
 function cardKeys() {
   const keys = new Set()
   for (const entry of sim.entries) {
@@ -216,18 +292,18 @@ function cardKeys() {
   return keys
 }
 
-/** A settled glasses screenshot saved as evidence; failures are noted, not fatal. */
+/** A settled glasses screenshot for the evidence; failures are noted, not fatal. */
 async function shot(name, caption, { changed = true } = {}) {
+  const file = `${String(r.shots.length + 1).padStart(2, '0')}-${name}.png`
   try {
     const frame = await settledFrame(sim, changed ? lastFrame : undefined, 4000)
     lastFrame = frame
-    const file = `live-smoke-${String(r.shots.length + 1).padStart(2, '0')}-${name}.png`
-    writeFileSync(join(evidenceDir, file), frame.png)
-    r.shots.push({ path: `docs/evidence/${file}`, caption })
+    writeFileSync(join(runDir, file), frame.png)
+    r.shots.push({ file, path: `docs/evidence/live-smoke-run/${file}`, caption })
   } catch (error) {
     r.shots.push({
       path: '(none)',
-      caption: `${caption}: screenshot failed (${error.message})`,
+      caption: `${caption}: screenshot failed (${redact(error.message)})`,
     })
   }
 }
@@ -244,6 +320,11 @@ function preflight() {
   if (process.env.DEV_INJECT === '1') {
     throw new Error(
       'DEV_INJECT=1 is TEST MODE; the live smoke needs real services. Unset it.',
+    )
+  }
+  if ((process.env.TELEGRAM_MODE ?? 'business') !== 'business') {
+    throw new Error(
+      'The live smoke follows the Telegram Business story: set TELEGRAM_MODE=business',
     )
   }
   const missing = [
@@ -271,13 +352,31 @@ function preflight() {
   r.env = {
     node: process.version,
     platform: process.platform,
-    telegramMode: process.env.TELEGRAM_MODE ?? 'business',
-    shopConfig: process.env.SHOP_CONFIG_PATH ?? '../../config/shop.demo.json',
+    telegramMode: 'business',
+    shopConfig: basename(process.env.SHOP_CONFIG_PATH ?? 'shop.demo.json'),
     timezone: shop.timezone,
     day,
     spokenDay: spokenDay(day),
+    pauseS: options.pauseS,
   }
   lines = customerLines(day)
+}
+
+/** Read-only, before anything is touched: the demo window must hold no real events. */
+async function checkDayFree() {
+  const { day } = r.env
+  const window = {
+    startUtc: localUtc(day, '14:00'),
+    endUtc: localUtc(day, '18:30'),
+  }
+  const clash = (await dayEvents(day)).filter(
+    (event) => !isDemoEvent(event) && overlaps(event, window),
+  )
+  if (clash.length) {
+    throw new Error(
+      `${r.env.spokenDay} already has ${clash.length} event(s) between 14:00 and 18:30 (bookings from an earlier run?). Delete them in Google Calendar or pass --day with another free day.`,
+    )
+  }
 }
 
 async function botUsername() {
@@ -293,19 +392,8 @@ async function botUsername() {
   }
 }
 
-async function cleanStart() {
+async function resetAndSeed() {
   const removed = await resetDemo(calendar, shop, DateTime.now())
-  const { day } = r.env
-  const from = Date.parse(localUtc(day, '14:00'))
-  const to = Date.parse(localUtc(day, '18:30'))
-  const clash = (await dayEvents(day)).filter(
-    (event) => Date.parse(event.startUtc) < to && Date.parse(event.endUtc) > from,
-  )
-  if (clash.length) {
-    throw new Error(
-      `${r.env.spokenDay} already has ${clash.length} event(s) between 14:00 and 18:30 (bookings from an earlier run?). Delete them in Google Calendar or pass --day with another free day.`,
-    )
-  }
   const seeded = await seedDemoEvents(
     calendar,
     shop,
@@ -345,9 +433,9 @@ async function startServer() {
 
 async function pairFromScratch(simulator, username) {
   await startVite(username ? { VITE_BOT_USERNAME: username } : {})
-  mark('launching the simulator (fresh storage, so pairing starts from scratch)')
+  mark('launching the simulator with fresh storage (pairing from scratch)')
   const launchedAt = Date.now()
-  const launched = await launchSimulator(simulator, appUrl)
+  const launched = await launchSimulator(simulator, `${appUrl}/?fresh=1`)
   sim = launched.sim
   await poll()
   r.pairing = { readyS: Math.round(launched.readyMs / 10) / 100 }
@@ -359,7 +447,7 @@ async function pairFromScratch(simulator, username) {
   )
   r.pairing.launchToCodeS = secondsBetween(launchedAt, issued.at)
   const row = get(
-    'SELECT code FROM pair_codes WHERE shop_id IS NULL AND consumed_at IS NULL AND expires_at > ? ORDER BY rowid DESC LIMIT 1',
+    'SELECT code, expires_at FROM pair_codes WHERE shop_id IS NULL AND consumed_at IS NULL AND expires_at > ? ORDER BY rowid DESC LIMIT 1',
     new Date().toISOString(),
   )
   if (!row) throw new Error('no live pairing code in the server database')
@@ -370,7 +458,21 @@ async function pairFromScratch(simulator, username) {
     `OWNER: from the owner's Telegram account, send this to @${username ?? 'the bot'}:   /pair ${row.code}`,
   )
   mark('waiting for the owner to pair')
-  const paired = await waitLine('paired', /\[chairside\] paired\b/, 0, waitMs)
+  const expiresAt = Date.parse(row.expires_at)
+  let paired
+  try {
+    paired = await waitLine(
+      'paired',
+      /\[chairside\] paired\b/,
+      0,
+      Math.max(1000, Math.min(waitMs, expiresAt - Date.now() + 5000)),
+    )
+  } catch (error) {
+    if (Date.now() >= expiresAt) {
+      throw new Error('the pairing code expired before the owner sent it; run again')
+    }
+    throw error
+  }
   const pairedAt = sim.entries.indexOf(paired.entry)
   r.pairing.codeToPairedS = secondsBetween(issued.at, paired.at)
   const live = await waitLine('link=live', /\[chairside\] link=live/, pairedAt, 30_000)
@@ -386,6 +488,7 @@ async function customerCard(label, who, text) {
   const from = cursor()
   const known = cardKeys()
   const updates = maxUpdateId()
+  const messageRow = maxMessageRow()
   ask(`${who}: send this to the owner's Telegram account:   ${text}`)
   mark(`waiting for the ${label} DM`)
   const shown = await waitLine(
@@ -397,15 +500,23 @@ async function customerCard(label, who, text) {
   )
   const requestId = shown.match[1]
   const request = get('SELECT * FROM requests WHERE id = ?', requestId)
-  const received = receivedAfter(updates)
+  check(Boolean(request), `${label}: the server holds the request behind the card`)
+  check(
+    personaNamed(request),
+    `${label}: the customer's Telegram first name is Anna or Omar (the screenshots are public evidence)`,
+  )
+  ownRequests.add(requestId)
+  const received = receivedBefore(updates, request.updated_at)
   mark(`${label} card shown (request ${requestId})`)
   return {
     requestId,
     version: Number(shown.match[2]),
     request,
+    // Only this run's messages: a request still pending from an earlier run keeps its old ids.
     messageIds: all(
-      'SELECT message_id FROM request_messages WHERE request_id = ? ORDER BY message_id',
+      'SELECT message_id FROM request_messages WHERE request_id = ? AND rowid > ? ORDER BY message_id',
       requestId,
+      messageRow,
     ).map((row) => row.message_id),
     telegramToCardS: secondsBetween(
       Date.parse(request.last_customer_msg_at),
@@ -417,24 +528,43 @@ async function customerCard(label, who, text) {
   }
 }
 
-/** Holds the card for --pause seconds, taps, and waits for the app's action result. */
-async function tap(requestId) {
+/**
+ * Holds the card for --pause seconds, then, right before the click, checks
+ * that the card has not changed and that its highlighted action is the
+ * expected one; taps and waits for the app's action result. `wanted`
+ * describes the expected action.
+ */
+async function tap(card, label, wanted, expected) {
   await delay(options.pauseS * 1000)
+  const current = get(
+    'SELECT version, status FROM requests WHERE id = ?',
+    card.requestId,
+  )
+  check(
+    current?.version === card.version && current?.status === 'pending',
+    `${label}: the card did not change during the hold (version ${current?.version}, ${current?.status})`,
+  )
+  const first = firstAction(card.requestId, card.version)
+  check(
+    Boolean(first) && expected(first),
+    `${label}: the highlighted action is ${wanted} (got ${describeAction(first)})`,
+  )
+  stopIfFinishing()
   const from = cursor()
   const tappedAt = Date.now()
   await sim.input('click')
-  mark(`tap (request ${requestId})`)
+  mark(`tap (request ${card.requestId})`)
   const result = await waitLine(
     'action result',
-    new RegExp(`\\[chairside\\] action result req=${requestId} status=(\\w+)`),
+    new RegExp(`\\[chairside\\] action result req=${card.requestId} status=(\\w+)`),
     from,
     30_000,
   )
   const action = get(
     'SELECT * FROM actions WHERE request_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
-    requestId,
+    card.requestId,
   )
-  return { from, tappedAt, status: result.match[1], resultAt: result.at, action }
+  return { from, tappedAt, status: result.match[1], action }
 }
 
 async function moment1() {
@@ -455,12 +585,20 @@ async function moment1() {
   await shot('m1-card', 'Moment 1: the card, smart default highlighted', {
     changed: false,
   })
-  const t = await tap(card.requestId)
+  const t = await tap(
+    card,
+    'Moment 1',
+    'Book & reply at 15:00',
+    (first) =>
+      first.kind === 'book' &&
+      sameInstant(first.slot_start_utc, localUtc(day, '15:00')),
+  )
   m.status = t.status
   m.actionId = t.action?.id
   m.tapToServerS = secondsBetween(t.tappedAt, Date.parse(t.action?.created_at))
-  m.tapToReceiptS = secondsBetween(t.tappedAt, t.resultAt)
   check(t.status === 'ok', `Moment 1 tap answered ok (got ${t.status})`)
+  const receipt = await waitReceipt('Done', t.from)
+  m.tapToReceiptS = secondsBetween(t.tappedAt, receipt.at)
   await shot('m1-receipt', 'Moment 1: the receipt after one tap')
   m.replyMessageId = t.action.telegram_message_id ?? undefined
   check(
@@ -468,6 +606,11 @@ async function moment1() {
     'Moment 1 reply sent: Telegram returned a message id',
   )
   m.tapToReplyS = secondsBetween(t.tappedAt, Date.parse(t.action.updated_at))
+  // The whole glasses workflow, with the --pause hold standing in for the owner reading the card.
+  m.dmToReplyS = secondsBetween(
+    Date.parse(card.request.last_customer_msg_at),
+    Date.parse(t.action.updated_at),
+  )
   const booking = get('SELECT * FROM bookings WHERE id = ?', t.action.id)
   check(Boolean(booking), 'Moment 1 booking recorded')
   m.eventId = booking.calendar_event_id
@@ -482,11 +625,12 @@ async function moment1() {
     booking.slot_end_utc,
   )
   check(m.eventVerified, 'Moment 1 event read back from Google Calendar')
-  await backToRoot(t.from)
+  await backToRoot(sim.entries.indexOf(receipt.entry))
   mark('Moment 1 done')
 }
 
 async function moment2() {
+  const { day } = r.env
   const card = await customerCard(
     'Moment 2',
     'OMAR (customer account 2; account 1 works too)',
@@ -497,11 +641,28 @@ async function moment2() {
     dmMessageIds: card.messageIds,
     telegramToCardS: card.telegramToCardS,
   })
+  check(
+    card.request.service_id === 'skin_fade' &&
+      sameInstant(card.request.requested_start_utc, localUtc(day, '15:00')),
+    `Moment 2 parsed a skin fade at 15:00 (got ${describeRequest(card.request)})`,
+  )
   await shot('m2-card', 'Moment 2: 15:00 is taken; the card offers the next opening', {
     changed: false,
   })
-  const t = await tap(card.requestId)
+  // Taken before the tap, so even an instant "yes" is after this point.
+  const updates = maxUpdateId()
+  const t = await tap(
+    card,
+    'Moment 2',
+    'an offer later that afternoon',
+    (first) =>
+      first.kind === 'offer' &&
+      Date.parse(first.slot_start_utc) > Date.parse(localUtc(day, '15:00')) &&
+      Date.parse(first.slot_start_utc) < Date.parse(localUtc(day, '18:30')),
+  )
   check(t.status === 'ok', `Moment 2 offer tap answered ok (got ${t.status})`)
+  await waitReceipt('Done', t.from)
+  await shot('m2-offer-sent', 'Moment 2: the offer went out')
   const offer = get(
     'SELECT * FROM offers WHERE request_id = ? ORDER BY rowid DESC LIMIT 1',
     card.requestId,
@@ -513,34 +674,40 @@ async function moment2() {
   m.offerLocal = interval(offer.slot_start_utc, offer.slot_end_utc)
   m.offerMessageId = offer.offer_message_id
   m.offerStatusAfterTap = offer.status
-  await shot('m2-offer-sent', 'Moment 2: the offer went out')
-  await backToRoot(t.from)
 
-  const from = cursor()
-  const updates = maxUpdateId()
   ask('OMAR: reply in the same chat:   yes   (or press the Book button under the offer)')
   mark('waiting for the "yes"')
+  // Finished means a stored outcome: finish() writes result_json with the final state.
   const accepted = await waitFor(
-    'the offer to be accepted and booked',
+    'the offer to be accepted and finished',
     waitMs,
     () => {
       const action = get(
         'SELECT * FROM actions WHERE idempotency_key = ?',
         `offer:${offer.id}`,
       )
-      return action &&
-        !['received', 'calendar_pending', 'send_started'].includes(action.state)
-        ? action
-        : undefined
+      return action?.result_json ? action : undefined
     },
     250,
   )
   mark('offer accepted')
-  const received = receivedAfter(updates)
+  // The update receipt stays up for 2 s: capture it before the slower checks.
+  let update
+  try {
+    update = await waitReceipt('Update', t.from)
+    await shot('m2-booked', 'Moment 2: the "yes" booked it; the glasses show the update')
+  } catch {
+    // Reported by the note below.
+  }
+  const outcome = JSON.parse(accepted.result_json)
+  const received = receivedBefore(updates, accepted.created_at)
   m.yesToBookedS = received
     ? secondsBetween(Date.parse(received.received_at), Date.parse(accepted.updated_at))
     : undefined
-  check(accepted.state === 'ok', `Moment 2 "yes" booked it (state ${accepted.state})`)
+  check(
+    outcome.status === 'ok' && accepted.state === 'sent',
+    `Moment 2 "yes" booked it and the confirmation went out (status ${outcome.status}, state ${accepted.state})`,
+  )
   m.bookingMessageId = accepted.telegram_message_id ?? undefined
   check(
     Boolean(m.bookingMessageId),
@@ -562,14 +729,8 @@ async function moment2() {
   check(m.eventVerified, 'Moment 2 event read back from Google Calendar')
   m.offerStatus = get('SELECT status FROM offers WHERE id = ?', offer.id).status
   check(m.offerStatus === 'accepted', `Moment 2 offer marked accepted (got ${m.offerStatus})`)
-  try {
-    await waitLine('screen=receipt', /\[chairside\] screen=receipt/, from, 15_000)
-    note(true, 'Moment 2 the glasses showed the booking as an update')
-    await shot('m2-booked', 'Moment 2: the "yes" booked it; the glasses show the update')
-    await backToRoot(from)
-  } catch {
-    note(false, 'Moment 2 the glasses showed the booking as an update')
-  }
+  note(Boolean(update), 'Moment 2 the glasses showed the booking as an update')
+  if (update) await backToRoot(sim.entries.indexOf(update.entry))
   mark('Moment 2 done')
 }
 
@@ -584,16 +745,36 @@ async function moment3() {
   )
   m.slotLocal = local(card.request.requested_start_utc)
   await shot('m3-card', 'Moment 3: the card shows 17:00 free', { changed: false })
+  stopIfFinishing()
   const block = await blockSlot(calendar, shop, `${day} 17:00`, 30, String(Date.now()))
   m.blockId = block.id
   m.blockLocal = formatLocal(block, shop.timezone)
   mark(`foreign block inserted at ${m.blockLocal}`)
+  // Tap only once Google reports the block, so the server's recheck cannot miss it.
+  await waitFor(
+    'the block in Google free/busy and the event list',
+    60_000,
+    async () => {
+      const busy = await calendar.freeBusy(block.startUtc, block.endUtc)
+      if (!busy.ok || !busy.busy.some((b) => overlaps(b, block))) return false
+      const events = await calendar.listEvents(block.startUtc, block.endUtc)
+      return events.some((event) => event.id === block.id)
+    },
+    1000,
+  )
   const chatId = card.request.chat_id
   m.before = {
     sent: sentInChat(chatId),
     events: (await dayEvents(day, block.id)).length,
   }
-  const t = await tap(card.requestId)
+  const t = await tap(
+    card,
+    'Moment 3',
+    'Book & reply at 17:00',
+    (first) =>
+      first.kind === 'book' &&
+      sameInstant(first.slot_start_utc, localUtc(day, '17:00')),
+  )
   m.status = t.status
   check(t.status === 'slot_taken', `Moment 3 tap answered slot_taken (got ${t.status})`)
   const again = await waitLine(
@@ -604,6 +785,8 @@ async function moment3() {
     (match) => Number(match[1]) > card.version,
   )
   m.versionAfter = Number(again.match[1])
+  const next = firstAction(card.requestId, m.versionAfter)
+  m.nextLocal = next?.slot_start_utc ? local(next.slot_start_utc) : undefined
   await shot(
     'm3-slot-taken',
     'Moment 3: nothing sent; the card says the slot was just taken and offers the next opening',
@@ -680,8 +863,11 @@ async function reconnect() {
 }
 
 async function cleanup() {
+  const pending = options.finalDm
+    ? '; the last DM stays as a waiting card'
+    : '; the Moment 3 request stays as a waiting card'
   if (options.keepDemo) {
-    r.cleanup = 'skipped (--keep-demo)'
+    r.cleanup = `skipped (--keep-demo)${pending}`
     return
   }
   const removed = await resetDemo(calendar, shop, DateTime.now())
@@ -689,41 +875,109 @@ async function cleanup() {
   if (blockId && !removed.some((event) => event.id === blockId)) {
     await calendar.deleteEvent(blockId).catch(() => {})
   }
-  r.cleanup = `removed ${removed.length} demo event(s) (the seeded bookings and the Moment 3 block); the Moment 1 and 2 bookings stay`
+  r.cleanup = `removed ${removed.length} demo event(s) (the seeded bookings and the Moment 3 block); the Moment 1 and 2 bookings stay${pending}`
 }
 
-function writeEvidence() {
-  r.finishedAt = new Date().toISOString()
+/** A failed run's report: only in the git-ignored run folder, never over the public evidence. */
+function writeFailReport(error) {
+  mkdirSync(runDir, { recursive: true })
+  writeFileSync(join(runDir, 'report.md'), renderReport(r))
+  writeFileSync(join(runDir, 'report.json'), `${JSON.stringify(r, null, 2)}\n`)
+  // The full error (child output included) stays local: the folder is git-ignored.
+  if (error) writeFileSync(join(runDir, 'error.txt'), `${error.stack ?? error}\n`)
+  say(
+    'FAIL report: docs/evidence/live-smoke-run/report.md (git-ignored); the last passing evidence is untouched',
+  )
+}
+
+/**
+ * A pass replaces the public evidence: new screenshots move in first (a rename
+ * replaces a same-named file), then the report, and only then are screenshots
+ * the new run did not produce removed.
+ */
+function writePassEvidence() {
+  const kept = new Set()
+  for (const s of r.shots) {
+    if (!s.file) continue
+    const name = `live-smoke-${s.file}`
+    renameSync(join(runDir, s.file), join(evidenceDir, name))
+    s.path = `docs/evidence/${name}`
+    kept.add(name)
+  }
   writeFileSync(join(evidenceDir, 'live-smoke.md'), renderReport(r))
   writeFileSync(
     join(evidenceDir, 'live-smoke.json'),
     `${JSON.stringify(r, null, 2)}\n`,
   )
-  say('wrote docs/evidence/live-smoke.md and live-smoke.json')
+  for (const file of readdirSync(evidenceDir)) {
+    if (/^live-smoke-\d+-.+\.png$/.test(file) && !kept.has(file)) {
+      rmSync(join(evidenceDir, file), { force: true, maxRetries: 3 })
+    }
+  }
+  rmSync(runDir, { recursive: true, force: true, maxRetries: 3 })
+  say('evidence: docs/evidence/live-smoke.md and live-smoke.json')
 }
 
-async function finish(error) {
-  if (finishing) return
-  finishing = true
-  if (error) {
-    r.ok = false
-    r.error = String(error.message ?? error).split('\n')[0]
-    say(`FAIL: ${error.message ?? error}`)
+/** On a pass, every card the glasses showed must be one this run asked for. */
+function onlyOwnCards() {
+  const foreign = new Set()
+  for (const entry of sim?.entries ?? []) {
+    const match = /card shown req=(\S+)/.exec(entry.message)
+    if (match && !ownRequests.has(match[1])) foreign.add(match[1])
   }
+  note(
+    foreign.size === 0,
+    `only this run's requests appeared on the glasses (others: ${foreign.size})`,
+  )
+}
+
+async function finishOnce(error) {
+  if (error) {
+    r.error = redact(String(error.message ?? error).split('\n')[0])
+    say(`FAIL: ${r.error}`)
+  }
+  // Stop the server, Vite and the simulator first, so no tap can still fire
+  // while cleanup removes the Busy block.
+  await stopAll()
+  if (!error && sim) onlyOwnCards()
+  r.ok = !error && r.checks.length > 0 && r.checks.every((c) => c.ok)
   if (started && calendar) {
     try {
       await cleanup()
     } catch (cleanupError) {
-      r.cleanup = `failed: ${cleanupError.message}`
+      r.cleanup = `failed: ${redact(String(cleanupError.message ?? cleanupError))}`
     }
   }
-  await stopAll()
   db?.close()
-  if (started) writeEvidence()
+  r.finishedAt = new Date().toISOString()
+  if (started) {
+    try {
+      if (r.ok) writePassEvidence()
+      else writeFailReport(error)
+    } catch (writeError) {
+      r.ok = false
+      r.error = redact(`writing the evidence failed: ${writeError.message}`)
+      say(`FAIL: ${r.error}`)
+      try {
+        writeFailReport(writeError)
+      } catch {
+        // Nothing more can be written; the exit code still says FAIL.
+      }
+    }
+  }
   say(r.ok ? 'PASS' : 'FAIL')
 }
 
+/** Every caller (the run, an error, Ctrl+C) waits for the same single finish. */
+function finish(error) {
+  finishing ??= finishOnce(error)
+  return finishing
+}
+
 process.on('SIGINT', () => {
+  // A second Ctrl+C quits at once, even if Google is slow to answer cleanup.
+  if (interrupted) process.exit(130)
+  interrupted = true
   finish(new Error('interrupted (Ctrl+C)')).finally(() => process.exit(130))
 })
 
@@ -734,6 +988,7 @@ try {
   say(
     `booking day ${r.env.day} (${r.env.spokenDay}), shop ${shop.name} in ${shop.timezone}`,
   )
+  say('name the customer accounts Anna and Omar (Telegram first name) before you start')
   say('the people will be asked to send, in order:')
   say(`  owner:  /pair CODE (the code appears on the glasses)`)
   say(`  Anna:   ${lines.anna}`)
@@ -741,12 +996,11 @@ try {
   say(`  Omar:   ${lines.yes}`)
   say(`  Anna:   ${lines.beard}`)
   if (options.finalDm) say(`  Anna:   ${lines.final}`)
+  await checkDayFree()
+  rmSync(runDir, { recursive: true, force: true })
+  mkdirSync(runDir, { recursive: true })
   started = true
-  mkdirSync(evidenceDir, { recursive: true })
-  for (const file of readdirSync(evidenceDir)) {
-    if (/^live-smoke-\d+-.+\.png$/.test(file)) rmSync(join(evidenceDir, file))
-  }
-  await cleanStart()
+  await resetAndSeed()
   const username = await botUsername()
   const listeningMs = await startServer()
   mark(`server listening after ${(listeningMs / 1000).toFixed(1)} s`)
@@ -759,9 +1013,8 @@ try {
   await moment2()
   await moment3()
   await reconnect()
-  r.ok = r.checks.every((c) => c.ok)
   await finish()
 } catch (error) {
   await finish(error)
 }
-process.exit(r.ok ? 0 : 1)
+process.exit(interrupted ? 130 : r.ok ? 0 : 1)

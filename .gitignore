@@ -16,6 +16,8 @@ data/
 
 # raw evidence (screens with customer data); curated evidence lives in docs/evidence/
 docs/evidence/raw/
+# failed live smoke runs: local diagnosis only (full error output)
+docs/evidence/live-smoke-run/
 
 # OMC planning/state: strategy notes, PRD, reviews and briefs stay private
 .omc/
