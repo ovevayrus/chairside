@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import type { WebSocketServer } from 'ws'
 import { FakeCalendar, googleCalendarFromEnv } from './calendar/index.js'
-import { openDatabase } from './db/index.js'
+import { assertSingleMode, openDatabase } from './db/index.js'
 import { createApp } from './http/app.js'
 import { attachLive } from './http/live.js'
 import {
@@ -87,6 +87,7 @@ function startRuntime() {
   )
   mkdirSync(dirname(dbPath), { recursive: true })
   const db = openDatabase(dbPath)
+  assertSingleMode(db, testMode ? 'test' : 'live')
   // The owner is the configured user or the owner of the stored business connection.
   const isOwner = (userId: number) =>
     userId === ownerUserId ||

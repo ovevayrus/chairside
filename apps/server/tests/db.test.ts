@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { openDatabase } from '../src/db/index.js'
+import { assertSingleMode, openDatabase } from '../src/db/index.js'
 
 let directory: string
 let path: string
@@ -34,6 +34,22 @@ function insertRequest() {
      VALUES ('request-1', 'shop-1', 201, 'Lee', 'book', 'pending', 1, ?, ?, ?)`,
   ).run(now, now, now)
 }
+
+it('keeps TEST MODE and live shops in separate databases', () => {
+  // An empty database serves either mode.
+  expect(() => assertSingleMode(db, 'live')).not.toThrow()
+  expect(() => assertSingleMode(db, 'test')).not.toThrow()
+  insertRequest() // shop-1 in TEST MODE
+  expect(() => assertSingleMode(db, 'test')).not.toThrow()
+  expect(() => assertSingleMode(db, 'live')).toThrow(
+    /holds a TEST MODE shop: TEST MODE needs its own DATABASE_PATH; remove the TEST MODE shop/,
+  )
+  db.prepare("UPDATE shops SET mode = 'live'").run()
+  expect(() => assertSingleMode(db, 'live')).not.toThrow()
+  expect(() => assertSingleMode(db, 'test')).toThrow(
+    /holds a live shop: give TEST MODE its own DATABASE_PATH/,
+  )
+})
 
 it('opens a WAL database with every section 4.2 table and column', () => {
   const columnsByTable = {

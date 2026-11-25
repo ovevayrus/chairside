@@ -38,6 +38,21 @@ export function runMigrations(db: DatabaseSync): void {
   }
 }
 
+/**
+ * Throws if the database already holds a shop of the other mode. TEST MODE
+ * fakes must never share a file with a live shop: processed update ids are
+ * global, so a fake update could make Chairside skip a real one.
+ */
+export function assertSingleMode(db: DatabaseSync, mode: 'live' | 'test'): void {
+  const other = mode === 'live' ? 'test' : 'live'
+  if (!db.prepare('SELECT 1 AS hit FROM shops WHERE mode = ?').get(other)) return
+  throw new Error(
+    mode === 'test'
+      ? 'This database holds a live shop: give TEST MODE its own DATABASE_PATH'
+      : 'This database holds a TEST MODE shop: TEST MODE needs its own DATABASE_PATH; remove the TEST MODE shop from this file',
+  )
+}
+
 export function openDatabase(path: string): DatabaseSync {
   const db = new DatabaseSync(path)
   try {
