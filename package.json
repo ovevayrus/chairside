@@ -16,7 +16,7 @@
     "test": "vitest run",
     "build": "npm run build -w @chairside/shared && npm run build -w @chairside/server && npm run build -w @chairside/glasses && npm run check:secrets",
     "e2e": "node e2e/run.mjs",
-    "pack": "node scripts/not-implemented.mjs pack",
+    "pack": "node scripts/pack.mjs",
     "check:secrets": "node scripts/check-secrets.mjs",
     "demo:local": "node scripts/demo-local.mjs",
     "demo:seed": "tsx scripts/demo-seed.ts",

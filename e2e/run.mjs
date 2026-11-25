@@ -4,6 +4,8 @@
 //                                     one-tap booking, the stale-slot case, a
 //                                     backend restart and the root exit request;
 //                                     writes docs/evidence/e2e-full.md + PNGs
+//   npm run e2e -- --idle             2-minute idle check: pair, wait 125 s, then a
+//                                     DM card and one tap still work
 //   npm run e2e -- --smoke            US-005 root-page checks (docs/SPIKES.md S3)
 //   npm run e2e -- --smoke --spike    then the dev spike page (?spike=1)
 //
@@ -14,6 +16,7 @@
 // crash.
 import { Backend } from './lib/backend.mjs'
 import { fullRun } from './lib/full.mjs'
+import { idleRun } from './lib/idle.mjs'
 import {
   assertPortsFree,
   packageBin,
@@ -33,11 +36,14 @@ async function main() {
   const flags = {
     smoke: args.includes('--smoke'),
     spike: args.includes('--spike'),
+    idle: args.includes('--idle'),
   }
-  const unknown = args.filter((arg) => arg !== '--smoke' && arg !== '--spike')
+  const unknown = args.filter(
+    (arg) => !['--smoke', '--spike', '--idle'].includes(arg),
+  )
   if (unknown.length > 0) {
     console.error(
-      'usage: npm run e2e [-- --smoke] [--spike]   (no flags: the full run)',
+      'usage: npm run e2e [-- --smoke] [--spike] [--idle]   (no flags: the full run)',
     )
     process.exitCode = 2
     return
@@ -56,6 +62,11 @@ async function main() {
   await backend.start()
   await startVite()
 
+  if (flags.idle) {
+    await idleRun(simulator, backend)
+    step('PASS (2-minute idle check; docs/evidence/e2e-idle-after-2min.png)')
+    return
+  }
   if (!flags.smoke && !flags.spike) {
     await fullRun(simulator, backend)
     step('PASS (full run; see docs/evidence/e2e-full.md)')
