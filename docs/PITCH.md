@@ -4,35 +4,35 @@
 
 [ON SCREEN] Start on the title card. Bring up the G2 simulator on the left, the customer's Telegram thread at top right and Google Calendar at bottom right.
 
-Everyone here built for traders. The people who need hands-free most are barbers. Picture Karim halfway through a haircut. Anna wants an appointment, and the clippers are still in his hand. Usually he'd have to put them down to look at his phone. With Chairside, Anna can get an answer while Karim stays with the person in the chair.
+David works alone in his barbershop in Dubai. He's halfway through a haircut, clippers in hand, when Alex messages him. His phone stays in his pocket. He reads each request on his Even G2 glasses and answers with his Even Realities R1 ring, without typing. We're showing his view in the Even simulator.
 
-[ON SCREEN] Anna asks for a skin fade on Saturday 5 Dec at 3pm. Tap "Book & reply." Hold on her reply and her calendar event.
+[ON SCREEN] Alex asks, "Can I get a haircut Saturday 5 Dec at 3pm?" Show "Alex · Haircut" and "Sat 5 Dec · 15:00 · ● free (45 min)". After the press, hold on his chat and the calendar event "Chairside · Alex · Haircut" from 15:00 to 15:45.
 
-This is Anna's chat with Karim. She's writing to the same account she'd normally use. Karim connected a Telegram Business bot to his account and chose which chats it could read. His glasses show Anna's name, the skin fade she asked for, and room for the whole cut at three. A fade takes forty-five minutes, and Karim leaves a little time between clients. Chairside accounts for both when it checks the calendar.
+Alex wants a haircut at three on Saturday. He's writing to David's usual Telegram account. David's connected a Telegram Business bot and chosen which chats it can read. The shop server reads Alex's message in memory. It never stores or logs the text or sends it to a third-party AI. Chairside checks David's Google Calendar for the whole forty-five-minute haircut and allows for the time he leaves between clients.
 
-I'll tap once. On Anna's screen, Karim has replied right under her question. On his calendar, the fade runs from three to three forty-five. Her first name and the appointment details go on the calendar. The shop server reads her message in memory and never saves the text.
+"Book & reply" is already highlighted. David can swipe on the ring to see other times or "Not now". Three works, so he presses once. Chairside checks again and books Alex's haircut from three to three forty-five. Look right under his question. There's the confirmation from David's own Telegram account.
 
-[ON SCREEN] Omar asks for the same slot. Tap the offer for 16:00. Show the offer, Omar's "yes," the receipt and the new event.
+[ON SCREEN] James asks for a skin fade at 3pm. Show "Offer Sat 5 Dec 16:00", then James's chat, the new event and David's glasses.
 
-Omar wants three as well. Anna's already in the book, so the first action Karim sees is an offer for four. I'll send it. Watch the calendar while Omar reads. Four is still open. If he writes "yes but five is better," Karim gets to look at that request. Here he just says "yes." Chairside checks four again, books the fade and confirms it with him. Karim already approved that time when he sent the offer.
+James wants a skin fade at three, too. Alex's already booked, so David's card highlights four, the next opening that fits. One press on the ring sends James the offer from David's account. If James writes "yes but five is better," David sees a new request. Watch James type "yes" on his own phone. That accepts the time David just offered. Chairside checks four again, books the fade and confirms in James's chat. David sees "James accepted · Booked" on his glasses without pressing again.
 
-[ON SCREEN] Anna asks for a beard trim at 17:00. Keep the free card visible, add the Busy block, then tap. Hold the thread and the refreshed card side by side.
+[ON SCREEN] Back in his chat with David, Alex asks, "Can you also do a beard trim Saturday 5 Dec at 5pm?" With the card showing 17:00 free, add a 30-minute "Busy" block at 17:00. Simulate the ring press. Hold Alex's chat and the refreshed card side by side. Keep his haircut question and David's confirmation visible above the beard-trim request.
 
-Anna would also like a beard trim at five. That time was free when the card came up. I'll block it on Karim's calendar while he's still reading. Now I'll tap to book. Look at the last line in Anna's chat. It's still her question. There's no beard trim next to that block. Karim's glasses tell him nothing was sent and give him five forty-five to offer.
+Alex is back. He asks for a beard trim at five in the same chat. David's card shows five is free. While he's reading it, I block off half an hour on his calendar. David presses the ring to book. Chairside checks again. The last line in Alex's chat is still his question, and there's no beard trim on the calendar. David's card says "Just taken · nothing sent" and gives him five forty-five to offer.
 
-[ON SCREEN] Show the stopwatch comparison for the same booking, from Anna sending her DM to seeing her confirmation, with the event already saved.
+[ON SCREEN] Show the stopwatch comparison for the haircut, from the moment Alex sends his DM until he sees David's confirmation with the event already saved.
 
-On the phone, that booking took {{phone_workflow_seconds}} seconds. On G2 it took {{glasses_workflow_seconds}} seconds. Both clocks stopped when Anna could read her confirmation. Think about Karim's side of that exchange. On his phone he had to switch from the chat to the calendar and back. Here he could keep talking to his client. I'd start with solo barbers in Telegram-heavy markets like Dubai, where the next booking can come straight from a chat they already have.
+On a phone, you have to switch from Alex's chat to the calendar and back. That booking takes {{phone_workflow_seconds}} seconds. In the G2 simulator it takes {{glasses_workflow_seconds}} seconds. Both clocks stop when Alex can read his confirmation. David can keep talking to the person in his chair. I'd start with solo barbers in Telegram-heavy markets like Dubai, where the next booking can come straight from a chat they already have.
 
 ## Q&A prep
 
 ### Why glasses and not a watch?
 
-A watch asks Karim to turn his wrist and look down in the middle of a cut. G2 puts the requested time and the action in his line of sight, so he can approve the booking with a tap.
+A watch asks David to turn his wrist and look down in the middle of a haircut. G2 puts the time in his line of sight, and he can approve it with his thumb on the ring. The R1 and the glasses' temple touchpads share the SDK's press, double press and swipe gestures. We've verified the app in the Even simulator only. We still need to check ring input, the system exit dialog and its cancel gesture on real G2 glasses.
 
 ### Why not just send a booking link?
 
-Anna already told Karim the service and time she wants. A link asks her to leave the chat and enter that information again. Chairside lets Karim answer her question where she asked it.
+Alex already told David the service and time he wants. A link asks him to leave the chat and enter that information again. Chairside lets David answer right there in Alex's chat.
 
 ### Is this allowed by Telegram's terms?
 
@@ -40,7 +40,7 @@ Chairside uses Telegram's Business bot connection with the owner's permission, d
 
 ### What about the 24-hour reply window?
 
-The owner's bot can reply within 24 hours of the customer's last incoming message. After that, the card tells Karim he can't reply, which rules out reminders and bulk late notices through this connection.
+The owner's bot can reply within 24 hours of the customer's last incoming message. After that, the card tells David he can't reply, which rules out reminders and bulk late notices through this connection.
 
 ### What happens if two people want the same slot?
 

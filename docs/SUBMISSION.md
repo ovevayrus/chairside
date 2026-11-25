@@ -6,15 +6,17 @@ Chairside
 
 ## Tagline
 
-Book a client from a Telegram DM with one tap on Even G2 glasses.
+Read a Telegram request on Even G2 glasses and book it with one press of the R1 ring.
 
 ## Description
 
-We designed Chairside for Karim, a solo barber in Dubai. When Anna messages him about a skin fade, he may already have someone in the chair. To book her on his phone, he has to put down the clippers, open their chat, check his calendar, enter the appointment and write back. Reading a watch means turning his wrist and looking down. His glasses put the time and the booking action in his line of sight.
+David works alone in his Dubai barbershop. Alex messages him halfway through a haircut. To book Alex on his phone, David has to put down the clippers, open their chat, check his calendar, enter the appointment and write back. Reading a watch means turning his wrist and looking down. With Even G2 glasses, he can read Alex's request with the clippers still in hand. One press on his Even Realities R1 ring approves the time on the card. He can swipe to other times or "Not now". His phone stays in his pocket.
 
-Anna writes to Karim's usual Telegram account. He chooses which private chats his Telegram Business bot can read. When Anna asks for Saturday at three, Chairside reads her message in memory and checks his Google Calendar. One card on his Even G2 glasses shows her first name, the service, the date, the time and whether there's room for the whole cut. If it's free, he taps "Book & reply." Chairside checks again, writes the event and sends the confirmation from Karim's account. Anna sees his answer right below her question.
+David chooses which private chats his Telegram Business bot can read. Alex writes to David's usual Telegram account, "Can I get a haircut Saturday 5 Dec at 3pm?" Chairside reads the message in memory and checks David's Google Calendar for the full 45 minutes. David's card shows "Alex · Haircut" and "Sat 5 Dec · 15:00 · ● free (45 min)". With "Book & reply" highlighted, David presses the ring once. Chairside checks again and adds "Chairside · Alex · Haircut" from 15:00 to 15:45. Alex sees the confirmation from David's account right under his question.
 
-If Omar asks for the same time, Karim's card already has the next opening highlighted. One tap sends Omar that offer. His plain "yes" is enough to book the time Karim offered, after another calendar check. If an appointment lands on the calendar while Karim is reading a card, his tap sends nothing. He sees the new opening and decides whether to offer it.
+James asks for a skin fade at 3pm. Alex has that slot, so David's card highlights "Offer Sat 5 Dec 16:00", the next opening that fits. One press sends the offer from David's account. James types "yes" on his own phone. Chairside checks 16:00 again, books it and confirms in James's chat. David's glasses show "James accepted · Booked" without another press.
+
+Alex returns to his chat with David and asks, "Can you also do a beard trim Saturday 5 Dec at 5pm?" The card shows 17:00 free. While David reads it, a 30-minute "Busy" block appears on his calendar at that time. He presses to book. Chairside checks again, sends Alex no message and adds no event. His beard-trim question is still the last message, below his haircut question and David's confirmation. David sees "Just taken · nothing sent" and can offer 17:45.
 
 The same interruption happens to stylists and nail techs who book through DMs. Their customers can keep using the chats they already have. The person doing the work gets to decide what goes on the calendar without typing a reply in front of a client.
 
@@ -34,14 +36,14 @@ The same interruption happens to stylists and nail techs who book through DMs. T
 
 - The shop server parses customer messages with fixed rules. It never stores or logs the text or sends it to a third-party AI. A canary test checks normal and error logs, the database and its write-ahead log.
 - Customer booking records contain only IDs, first name, service, times and statuses. Google Calendar gets the details needed for the appointment.
-- The owner approves every booking or offer. A customer can accept an approved offer without another tap. Chairside checks the event for overlaps before sending a booking confirmation.
+- The owner approves every booking or offer. A customer's "yes" accepts only the time the owner offered. Chairside checks the event for overlaps before sending a booking confirmation.
 - Shop-bot customers can erase their Chairside records with `/forget`. Business-chat customers can contact the owner. Owners can erase their shop's records with `/delete_my_data` in their private chat with the bot.
 
 ## Limits
 
 - Telegram Business permits replies within 24 hours of the customer's last incoming message. Chairside doesn't send reminders or bulk late notices.
 - The parser handles English booking requests. A missing day or time gives the owner a question to send.
-- Cards appear while Chairside is open. We verified the glasses interface in the Even simulator. The system exit dialog and its cancel gesture still need a check on real G2 glasses.
+- Cards appear while Chairside is open. We verified the glasses app only in the Even simulator. The ring and the touchpads on the glasses' temples share the same SDK gestures (press, double press and swipe). We still need to test ring input on hardware and check the system exit dialog and its cancel gesture on real G2 glasses.
 
 ## Built with
 

@@ -2,59 +2,60 @@
 
 ## Before recording
 
-- [ ] `npm run smoke:live -- --day 2026-12-05` is the take itself. It resets and seeds the demo events, starts everything, pairs, makes every tap, adds the Busy block and records the timings in `docs/evidence/live-smoke.md`; the people only send the Telegram messages it prints. Its 15:00 and 16:00 bookings stay on that day, so rehearse with another `--day`.
-- [ ] Use `config/shop.recording.json`. In PowerShell, set `$env:SHOP_CONFIG_PATH = '../../config/shop.recording.json'` in the shell that launches the server and the one running the demo commands. Set Google Calendar's display zone to New York to match the glasses.
-- [ ] Start the server with the dedicated shop calendar and the live Telegram Business connection with reply rights. Open Chairside in the Even G2 simulator, pair it and make sure cards are active.
-- [ ] From the repository root, run `npm run demo:reset`, then `npm run demo:seed`. The seed adds Sami and Yusuf on today's shop schedule. Open Google Calendar in week view on **Saturday 5 Dec 2026**. Check that the afternoon slots needed below are free before the take.
-- [ ] Use consenting customer accounts named Anna and Omar. Open each customer's existing thread with Karim's own account in Telegram Desktop. Crop the chat list and unrelated notifications out of the recording.
-- [ ] Put the simulator on the left, customer Telegram Desktop at top right and Calendar week view at bottom right. Frame Saturday so viewers can read the hours. Keep the terminal outside the capture.
-- [ ] Record the phone stopwatch run separately. For both workflows, start when Anna sends the DM and stop when she sees the confirmation, with the calendar event already saved. Record the live send, card, tap and reply timestamps in `docs/evidence/live-smoke.md`. Fill the timing slots before recording the narration.
-- [ ] Capture the screen footage first. Record your own voice and webcam over the finished cut. Leave room for your face and the captions without covering the selected action, the newest message or the event time.
+- [ ] Use the dedicated shop calendar and a live Telegram Business connection with permission to reply. In PowerShell, set `$env:SHOP_CONFIG_PATH = '../../config/shop.recording.json'` in the shell that runs the demo and starts the server. The recording config is for David's Barbers.
+- [ ] Set Google Calendar's display zone to New York. Open week view on **Saturday 5 Dec 2026** and check that 14:00 to 18:30 is free. Rehearse with another `--day`. The 15:00 and 16:00 bookings stay on the calendar after each run.
+- [ ] Use two consenting customers' accounts. Their Telegram first names must be Alex and James. Put their two comma-separated Telegram user IDs in `SMOKE_CUSTOMER_IDS` in `apps/server/.env`. For the take, set the owner's Telegram name to David so customers see his name in their chat header.
+- [ ] Put the simulator on the left, Telegram Desktop at top right and Calendar at bottom right. Each customer types on their own phone. Show that customer's existing chat with David on the desktop. Crop out the chat list and notifications. Keep Saturday's hours legible and the terminal off camera.
+- [ ] From the repository root, run `npm run smoke:live -- --day 2026-12-05` for the take itself. It resets and seeds the demo events, starts the server and simulator, handles pairing, makes every press, adds the Busy block and writes timings to `docs/evidence/live-smoke.md`. Follow the pairing prompt off camera. In Telegram, people send only the messages the runner prints.
+- [ ] After the offer, James types `yes` on his phone. Leave the Book button alone. During Alex's beard-trim request, the terminal asks twice how many messages are below his question. Enter the count you see each time.
+- [ ] Separately, time the same booking by hand on your phone, from Alex sending his haircut question to the confirmation in his chat with the event saved. Use a rehearsal day for this. Fill the phone time from your stopwatch and the glasses times from the live report before you record your voice.
+- [ ] Capture the screen footage first. Record your voice and webcam over the finished video. Leave room for your face and captions without covering a highlighted action, the latest message or an appointment time.
 
 ## Shot list and exact captions
 
-Show the captions in each row in order. Hold the original footage through each tap and its result.
+Keep each ring press and its result together. Leave a beat for the viewer to read each reply.
 
 | Time | Even G2 simulator (left) | Telegram Desktop, customer view (top right) | Google Calendar, week view (bottom right) | Captions |
 | --- | --- | --- | --- | --- |
-| 0:00 to 0:12 | Title card with the 3-2-1 countdown (its beeps sync the narration recording), then the simulator on its home screen. | Reveal Anna's chat with Karim. | Reveal Saturday 5 Dec. | Hands busy. Bookings arrive in Telegram. |
-| 0:12 to 0:50 | Hold Anna's free 15:00 card. Tap "Book & reply" once. Catch the receipt. | As Anna, send "Can I get a skin fade Saturday 5 Dec at 3pm?" Keep her question and Karim's reply together. | Show the empty slot, then the event "Chairside · Anna · Skin fade" from 15:00 to 15:45. Hold on both results. | Anna asks for Saturday at 15:00.<br>One tap books the cut and replies in her chat. |
-| 0:50 to 1:40 | Show the 16:00 offer already highlighted. Tap it, then catch Omar's booking receipt after he answers. | As Omar, send "Can I get a skin fade Saturday 5 Dec at 3pm?" Hold on the delivered offer while Omar reads it. Reply "yes" and show the confirmation. | Keep Anna at 15:00 in view. Show 16:00 still open as Omar reads, then show his new event at 16:00. | Anna has 15:00. Karim offers 16:00.<br>Omar says yes. Chairside checks again and books him. |
-| 1:40 to 2:25 | Hold Anna's free 17:00 card until the Busy block appears. Tap "Book & reply." Frame "Just taken · nothing sent" and the new 17:45 offer. Leave it highlighted. | As Anna, send "can you also do a beard trim Sat 5 Dec 5pm?" Keep her question as the last message through the tap. | While the free card is visible, run `npm run demo:block -- "2026-12-05 17:00" 30` off camera (the smoke runner adds it by itself). Refresh to show Busy from 17:00 to 17:30. Hold on the same block after the tap. | 17:00 was free when Anna's card appeared.<br>Nothing sent. The next opening is 17:45. |
-| 2:25 to 2:50 | Replay Anna's card and tap from the first booking. Overlay the phone stopwatch and the glasses result. | Keep the DM and reply visible as the start and finish of both timings. | Hold Anna's saved event beside her confirmation. | Same booking, from DM to confirmation.<br>Phone {{phone_workflow_seconds}} s. Glasses {{glasses_workflow_seconds}} s.<br>DM to card {{dm_to_card_seconds}} s. Tap to reply {{tap_to_reply_seconds}} s. |
-| 2:50 to 3:00 | Hold on the simulator with room for the closing captions. | Leave Anna's thread visible. | Leave the booked appointments visible. | Chairside. Book clients without putting down the scissors.<br>You approve every booking or offer. Message text is never stored. |
+| 0:00–0:12 | Sync the voice recording to the 3-2-1 countdown beeps, then reveal Chairside's home screen. | Show David's name at the top of Alex's chat. | Frame Saturday 5 Dec with the afternoon hours visible. | Chairside at David's Barbers<br>Saturday 5 Dec 2026 |
+| 0:12–0:50 | Hold on `NEW REQUEST` with `Alex · Haircut` and `Sat 5 Dec · 15:00 · ● free (45 min)` legible below it. Show the first action, `Book & reply`, already highlighted. Catch the press, the receipt `● Booked Sat 5 Dec 15:00` and the return home. | Alex sends `Can I get a haircut Saturday 5 Dec at 3pm?` on his phone. Hold on his question and the confirmation from David directly below it. | Show 15:00 free, then `Chairside · Alex · Haircut` from 15:00 to 15:45. | Alex's haircut, 15:00 to 15:45<br>One press confirms it in his chat. |
+| 0:50–1:40 | Show `Offer Sat 5 Dec 16:00` already highlighted. Hold through one press. After James replies, catch `● James accepted · Booked Sat 5 Dec 16:00`. | James sends `Can I get a skin fade Saturday 5 Dec at 3pm?` on his phone. Show David's offer. Give James time to read it, type `yes` and see the confirmation. | Keep Alex's 15:00 event visible. Hold on the gap at 16:00 until James accepts, then show `Chairside · James · Skin fade` from 16:00 to 16:45. | David offers 16:00.<br>James types "yes" on his phone. |
+| 1:40–2:25 | Hold Alex's free 17:00 card while the Busy block appears. Show the press on `Book & reply`. Hold on `Just taken · nothing sent` with 17:45 highlighted. | On his phone, Alex sends `Can you also do a beard trim Saturday 5 Dec at 5pm?` in the same chat. Show his haircut question and David's confirmation above it. Keep the beard-trim question visible as the last message through the press. | Show the runner's `Busy` block from 17:00 to 17:30 while the card still says free. After the press, hold on the block so viewers can see there's no beard trim. | 17:00 just filled. Nothing sent.<br>Alex's next opening is 17:45. |
+| 2:25–2:38 | Replay Alex's haircut booking with the phone stopwatch and live glasses time. | Show Alex's haircut question, then David's confirmation. | Show the saved 15:00 haircut beside the confirmation. | Phone {{phone_workflow_seconds}} s<br>Glasses {{glasses_workflow_seconds}} s |
+| 2:38–2:50 | Show Alex's haircut card appearing, then the ring press. | Keep the reply visible as the press-to-reply time appears. | Keep Alex's haircut event in frame. | Message to card {{dm_to_card_seconds}} s<br>Ring press to reply {{tap_to_reply_seconds}} s |
+| 2:50–3:00 | End on the home screen from Alex's haircut booking. | Leave David's haircut confirmation visible. | Hold on the two bookings. | David approves each booking or offer.<br>Chairside never stores message text. |
 
 ## Narration
 
-Aim for about 2:45 of speech. Leave a beat after each tap so viewers can read the result.
+Allow about 2:45 for speech. Pause after each press so viewers can read what happens.
 
-**0:00 to 0:12**
+**0:00–0:12**
 
-Karim's in the middle of a haircut when Anna messages him. His phone's in his pocket. The G2 simulator on the left shows his view.
+David's giving a haircut, scissors in one hand, comb in the other. The Even Hub simulator stands in for his Even G2 glasses and Even Realities R1 ring.
 
-**0:12 to 0:50**
+**0:12–0:50**
 
-Anna's typing in her usual Telegram chat with Karim. She'd like a skin fade on Saturday, December fifth, at three. The shop's calendar is just below her chat. When her request comes in, Chairside checks whether there's time for the whole cut. There's her name on the glasses, and three o'clock is free. Karim taps Book and reply. Look at Saturday afternoon. The cut runs until three forty-five, and Anna can read Karim's confirmation right under her question.
+On his phone, Alex asks David for a haircut at three on Saturday. This is their usual Telegram chat. About three seconds later, David sees the request on his glasses. His phone stays in his pocket. Chairside's already checked his Google Calendar for the full forty-five-minute haircut. "Book and reply" is highlighted. One press on his ring says yes to three. Look at David's calendar, bottom right. Chairside checks again and books Alex from three to three forty-five. Alex gets the confirmation from David's own Telegram account, right under his question.
 
-**0:50 to 1:40**
+**0:50–1:40**
 
-Omar wants a skin fade at exactly the same time. Here's his chat with Karim. Anna has three o'clock now, so the first action on Karim's glasses is to offer four, the next opening that fits the cut. He taps it and Omar gets the offer in his chat. While Omar's reading, you can still see a gap at four on the calendar. Now he types one word, yes. Chairside checks four again before it books him. That's Omar's receipt on the glasses and his appointment below Anna's.
+James asks for a skin fade at three that same Saturday. Alex has that slot, and a skin fade takes forty-five minutes too. Chairside leaves five minutes between appointments and offers times on the quarter hour. That makes four the next opening. It's already highlighted on David's glasses. He presses his ring once and James gets the offer from David's account. Four is still open on the calendar while James reads the offer on his phone. James types "yes" to the time David just offered. Chairside checks four again, books James until four forty-five and confirms in his chat. David's glasses tell him James accepted. He doesn't have to press again.
 
-**1:40 to 2:25**
+**1:40–2:25**
 
-Back in Anna's chat, she's asking about a beard trim at five. Look at the glasses while I add a block to the calendar. The card Karim is reading still says five is free. The block runs from five to five thirty. Now he taps to book. His glasses say nothing was sent. Anna's last message is still her question about the trim, and there's no beard trim alongside that block. Karim can see the next opening, five forty-five. He can offer it when he's ready.
+Alex reopens his chat with David. He wants a beard trim at five. David's glasses show five is free for the twenty-minute trim. Watch his calendar, bottom right. While he reads, I mark five to five thirty Busy. David presses his ring to book. Chairside rechecks five and sees the block. His glasses say, "Just taken. Nothing sent." Alex's question is still the last message. There's no beard trim on the calendar. Five forty-five is highlighted now. The ring and the touchpads at his temples use the same gestures. David can swipe up or down for other times or "Not now." A double press leaves the card waiting.
 
-**2:25 to 2:50**
+**2:25–2:50**
 
-I timed the same booking on my phone, from sending Anna's message to seeing Karim's confirmation with the appointment saved. It took {{phone_workflow_seconds}} seconds. With the glasses it took {{glasses_workflow_seconds}} seconds. From Karim's tap to the reply showing up in Anna's chat was {{tap_to_reply_seconds}} seconds.
+I timed Alex's haircut booking by hand on my phone. From his question to David's confirmation, with the appointment saved, that's {{phone_workflow_seconds}} seconds. The live run with the glasses takes {{glasses_workflow_seconds}} seconds. From David pressing his ring to the reply in Alex's chat, it's {{tap_to_reply_seconds}} seconds.
 
-**2:50 to 3:00**
+**2:50–3:00**
 
-Chairside lets Karim book a client without putting down the scissors. He approves every booking or offer. Chairside never stores the message text.
+David approves every booking or offer without picking up his phone or typing a word. Chairside never stores the message text.
 
 ## Retake tips
 
-- If a time differs, check the New York setting and the actual week view. Use the opening the card offers. For the planned take, clear only rehearsal bookings from the dedicated calendar and start fresh. `demo:reset` clears marked seed events and demo blocks. Bookings made by Anna and Omar survive it.
-- Give Omar time to read the offer before sending "yes." The booking receipt shows on the glasses for 2 seconds; hold that frame in the edit if needed.
-- For Anna's beard trim, note the chat and calendar counts after her DM and the Busy block, immediately before the tap. Compare them with the counts after the tap. Keep both panes visible so the viewer can check that the tap added neither a message nor an appointment.
-- If Calendar takes a moment to refresh, keep recording and hold the result. Take all timings from the uncut run and the phone stopwatch.
+- If an opening differs, check the New York display zone, the recording date and the afternoon's events. For another take on 5 Dec, clear only the prior take's bookings from the dedicated calendar. The runner resets the marked seeds and demo blocks.
+- Give James time to read before he types `yes`. His receipt lasts about two seconds. Hold that frame in the edit if it goes by too fast to read.
+- For Alex's beard trim, compare the two counts below his question, just before and just after the press. Both should be zero. Keep the chat and the Busy block in frame long enough to see that Chairside added neither a reply nor an appointment.
+- If Calendar is slow to refresh, keep recording until the event appears. Use the original timestamps for the timing overlay, even if you hold a frame in the edit.
