@@ -3,8 +3,9 @@ import { lstatSync, readdirSync, readFileSync, readlinkSync } from 'node:fs'
 import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+// The Telegram token has no leading \b: inside a Bot API URL it follows "bot" directly.
 const secretPattern =
-  /\b\d{6,}:[A-Za-z0-9_-]{30,}\b|\bsk-[A-Za-z0-9_-]{20,}|\bAIza[0-9A-Za-z_-]{30,}|"private_key"\s*:/g
+  /\d{6,}:[A-Za-z0-9_-]{30,}\b|\bsk-[A-Za-z0-9_-]{20,}|\bAIza[0-9A-Za-z_-]{30,}|"private_key"\s*:/g
 
 function collectBundleFiles(root, relativePath, files) {
   const path = join(root, relativePath)

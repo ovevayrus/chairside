@@ -42,6 +42,15 @@ it('exits zero when clean and exits one with a redacted location on a match', ()
   expect(result.stderr.trim()).toBe('fixture.txt:2')
 })
 
+it('finds a bot token inside a Bot API URL', () => {
+  const token = '123456789:' + 'u'.repeat(35)
+  writeFileSync(
+    join(root, 'notes.md'),
+    `ok\nhttps://api.telegram.org/bot${token}/getMe\n`,
+  )
+  expect(scanSecrets(root)).toEqual(['notes.md:2'])
+})
+
 it('reports only locations for tracked files, untracked files and the built bundle', () => {
   const telegram = '123456:' + 't'.repeat(30)
   const openai = 'sk-' + 'o'.repeat(20)
