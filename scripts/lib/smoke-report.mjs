@@ -75,14 +75,18 @@ export function spokenDay(isoDay) {
   return DateTime.fromISO(isoDay).setLocale('en-US').toFormat('cccc d LLL')
 }
 
-/** What each customer sends, in order. */
+/**
+ * What the customers send, in order (docs/DEMO_SCRIPT.md tells the same
+ * story): Alex's haircut, James's skin fade and "yes", Alex's beard trim,
+ * and James's message after the reconnect.
+ */
 export function customerLines(isoDay) {
   const day = spokenDay(isoDay)
   return {
-    anna: `Can I get a skin fade ${day} at 3pm?`,
-    omar: `Can I get a skin fade ${day} at 3pm?`,
+    haircut: `Can I get a haircut ${day} at 3pm?`,
+    skinFade: `Can I get a skin fade ${day} at 3pm?`,
     yes: 'yes',
-    beard: `can you also do a beard trim ${day} at 5pm?`,
+    beardTrim: `Can you also do a beard trim ${day} at 5pm?`,
     final: `Could I come in for a haircut ${day} at 11am?`,
   }
 }
@@ -142,7 +146,7 @@ export function renderReport(r) {
     '',
     `Result: **${r.ok ? 'PASS' : `FAIL${r.error ? `: ${r.error}` : ''}`}**`,
     '',
-    'Recorded: Telegram message ids, Chairside request and action ids, calendar event ids, times, counts and statuses. Not recorded: message text, names, Telegram user or chat ids. Screenshots are taken only when the customer accounts are named Anna or Omar.',
+    'Recorded: Telegram message ids, Chairside request and action ids, calendar event ids, times, counts and statuses. Not recorded: message text, names, Telegram user or chat ids. Screenshots are taken only when the customer accounts are named Alex or James.',
     '',
     '## Timings (Moment 1)',
     '',

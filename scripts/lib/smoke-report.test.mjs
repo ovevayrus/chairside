@@ -61,10 +61,10 @@ describe('the booking day', () => {
   it('is spoken the way the customers write it', () => {
     expect(spokenDay('2026-12-05')).toBe('Saturday 5 Dec')
     expect(customerLines('2026-12-05')).toEqual({
-      anna: 'Can I get a skin fade Saturday 5 Dec at 3pm?',
-      omar: 'Can I get a skin fade Saturday 5 Dec at 3pm?',
+      haircut: 'Can I get a haircut Saturday 5 Dec at 3pm?',
+      skinFade: 'Can I get a skin fade Saturday 5 Dec at 3pm?',
       yes: 'yes',
-      beard: 'can you also do a beard trim Saturday 5 Dec at 5pm?',
+      beardTrim: 'Can you also do a beard trim Saturday 5 Dec at 5pm?',
       final: 'Could I come in for a haircut Saturday 5 Dec at 11am?',
     })
   })

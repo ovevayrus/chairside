@@ -49,7 +49,7 @@ SQLite with write-ahead logging. Tables hold ids, first names, service ids, time
 
 ## Glasses app (`apps/glasses/src`)
 
-`app.ts` drives the screens (pair, root, card, receipt, status) from live frames; `net/` holds the WebSocket client with backoff and the HTTP polling fallback; `ui/` fits text using glyph widths measured in the simulator and drops glyphs the firmware font lacks; `input.ts` turns the SDK's tap, swipe, double-tap and long-press events into one small set of actions. A root double tap calls `shutDownPageContainer(1)` for the system exit dialog.
+`app.ts` drives the screens (pair, root, card, receipt, status) from live frames; `net/` holds the WebSocket client with backoff and the HTTP polling fallback; `ui/` fits text using glyph widths measured in the simulator and drops glyphs the firmware font lacks; `input.ts` turns the SDK's tap, swipe, double-tap and long-press events into one small set of actions. The SDK gives the optional R1 ring the same press, double press and swipe gestures as the temple touchpads, so the owner can answer a card from the ring without touching the glasses. Chairside reacts to the gesture, not its source; the simulator sends every gesture as if from the glasses, so ring input itself is unverified until G2 hardware. A root double tap calls `shutDownPageContainer(1)` for the system exit dialog.
 
 ## Telegram limits that shaped the design
 

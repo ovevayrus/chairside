@@ -11,7 +11,7 @@ describe('shop configuration', () => {
     expect(shop).toEqual(loadShopConfig(absolute))
     expect(shop).toEqual(loadShopConfig())
     expect(shop).toMatchObject({
-      name: "Karim's Barbers",
+      name: "David's Barbers",
       timezone: 'Asia/Dubai',
       gridMin: 15,
       bufferMin: 5,

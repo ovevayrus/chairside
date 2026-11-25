@@ -96,12 +96,12 @@ async function story() {
   const when = spoken(day)
 
   say(
-    `1/3 Anna asks for a skin fade ${when} at 3pm. A card opens: tap to book it.`,
+    `1/3 Alex asks for a haircut ${when} at 3pm. A card opens: tap to book it.`,
   )
   let mark = sim.entries.length
   await backend.dev('POST', '/dev/inject', {
-    firstName: 'Anna',
-    text: `Can I get a skin fade ${when} at 3pm?`,
+    firstName: 'Alex',
+    text: `Can I get a haircut ${when} at 3pm?`,
   })
   const first = await waitCard(mark)
   const booked = await waitLine(
@@ -111,16 +111,16 @@ async function story() {
   )
   say(
     booked
-      ? 'Booked. Anna got her confirmation (fake).'
+      ? 'Booked. Alex got his confirmation (fake).'
       : 'No tap within 60 s, moving on.',
   )
 
   say(
-    `2/3 Omar asks for the same slot, ${when} at 3pm. It is taken, so expect an offer card. Tap the offer.`,
+    `2/3 James asks for a skin fade at the same time, ${when} at 3pm. It is taken, so expect an offer card. Tap the offer.`,
   )
   mark = sim.entries.length
   await backend.dev('POST', '/dev/inject', {
-    firstName: 'Omar',
+    firstName: 'James',
     text: `Can I get a skin fade ${when} at 3pm?`,
   })
   const offer = await waitCard(mark)
@@ -131,19 +131,19 @@ async function story() {
   )
   say(
     tapped
-      ? 'Offer sent (fake). Omar replies yes.'
-      : 'No tap within 60 s. Omar replies yes anyway.',
+      ? 'Offer sent (fake). James replies yes.'
+      : 'No tap within 60 s. James replies yes anyway.',
   )
-  await backend.dev('POST', '/dev/inject', { firstName: 'Omar', text: 'yes' })
+  await backend.dev('POST', '/dev/inject', { firstName: 'James', text: 'yes' })
   await delay(4000)
 
   say(
-    `3/3 Anna asks for a beard trim ${when} at 5pm. 5 s after the card shows, someone else takes that time, so your tap will find the slot taken.`,
+    `3/3 Alex comes back for a beard trim ${when} at 5pm. 5 s after the card shows, someone else takes that time, so your tap will find the slot taken.`,
   )
   mark = sim.entries.length
   await backend.dev('POST', '/dev/inject', {
-    firstName: 'Anna',
-    text: `can you also do a beard trim ${when} at 5pm?`,
+    firstName: 'Alex',
+    text: `Can you also do a beard trim ${when} at 5pm?`,
   })
   await waitCard(mark)
   await delay(5000)
@@ -162,8 +162,8 @@ async function check() {
   const day = bookingDay(new Date())
   const mark = sim.entries.length
   await backend.dev('POST', '/dev/inject', {
-    firstName: 'Anna',
-    text: `Can I get a skin fade ${spoken(day)} at 3pm?`,
+    firstName: 'Alex',
+    text: `Can I get a haircut ${spoken(day)} at 3pm?`,
   })
   await waitCard(mark)
   const frame = await settledFrame(sim, undefined, 4000)

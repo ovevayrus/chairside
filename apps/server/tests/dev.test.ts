@@ -144,7 +144,7 @@ describe('/dev endpoints in TEST MODE', () => {
     const response = await call(app, 'GET', '/dev/info')
     expect(await response.json()).toEqual({
       mode: 'test',
-      shopName: "Karim's Barbers",
+      shopName: "David's Barbers",
     })
   })
 

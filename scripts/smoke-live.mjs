@@ -11,7 +11,7 @@
 // and live-smoke-*.png. A failed run leaves them alone and writes its report to
 // docs/evidence/live-smoke-run/ (git-ignored). It records ids, times, counts and
 // statuses only: never message text, names, or Telegram user and chat ids, and
-// it takes screenshots only of customer accounts named Anna or Omar.
+// it takes screenshots only of customer accounts named Alex or James.
 //
 //   npm run smoke:live                        booking day: first Saturday >= 2 days ahead
 //   npm run smoke:live -- --day 2026-12-05    another day (free 14:00-18:30, shop open)
@@ -81,7 +81,7 @@ const serverDir = join(root, 'apps', 'server')
 const serverBase = `http://127.0.0.1:${ports.backend}`
 const waitMs = options.waitMin * 60_000
 // Screenshots go into a public repository: only these customer names may appear.
-const PERSONAS = new Set(['anna', 'omar'])
+const PERSONAS = new Set(['alex', 'james'])
 
 const r = {
   startedAt: new Date().toISOString(),
@@ -563,7 +563,7 @@ async function customerCard(label, who, text) {
   )
   check(
     personaNamed(request),
-    `${label}: the customer's Telegram first name is Anna or Omar (the screenshots are public evidence)`,
+    `${label}: the customer's Telegram first name is Alex or James (the screenshots are public evidence)`,
   )
   ownRequests.add(requestId)
   const received = receivedBefore(updates, request.updated_at)
@@ -632,7 +632,7 @@ async function tap(card, label, wanted, expected) {
 
 async function moment1() {
   const { day } = r.env
-  const card = await customerCard('Moment 1', 'ANNA (customer account 1)', lines.anna)
+  const card = await customerCard('Moment 1', 'ALEX (customer account 1)', lines.haircut)
   const m = (r.moment1 = {
     requestId: card.requestId,
     dmMessageIds: card.messageIds,
@@ -641,9 +641,9 @@ async function moment1() {
     receivedToCardS: card.receivedToCardS,
   })
   check(
-    card.request.service_id === 'skin_fade' &&
+    card.request.service_id === 'haircut' &&
       sameInstant(card.request.requested_start_utc, localUtc(day, '15:00')),
-    `Moment 1 parsed a skin fade at 15:00 (got ${m.parsed})`,
+    `Moment 1 parsed a haircut at 15:00 (got ${m.parsed})`,
   )
   await shot('m1-card', 'Moment 1: the card, smart default highlighted', {
     changed: false,
@@ -699,8 +699,8 @@ async function moment2() {
   const { day } = r.env
   const card = await customerCard(
     'Moment 2',
-    'OMAR (customer account 2; account 1 works too)',
-    lines.omar,
+    'JAMES (customer account 2)',
+    lines.skinFade,
   )
   const m = (r.moment2 = {
     requestId: card.requestId,
@@ -740,7 +740,7 @@ async function moment2() {
   m.offerStatusAfterTap = offer.status
 
   const messageRow = maxMessageRow()
-  ask('OMAR: type yes in the same chat and send it (not the Book button)')
+  ask('JAMES: type yes in the same chat and send it (not the Book button)')
   mark('waiting for the "yes"')
   // Finished means a stored outcome: finish() writes result_json with the final state.
   const accepted = await waitFor(
@@ -809,7 +809,7 @@ async function moment2() {
 
 async function moment3() {
   const { day } = r.env
-  const card = await customerCard('Moment 3', 'ANNA (customer account 1)', lines.beard)
+  const card = await customerCard('Moment 3', 'ALEX (customer account 1)', lines.beardTrim)
   const m = (r.moment3 = { requestId: card.requestId })
   check(
     card.request.service_id === 'beard_trim' &&
@@ -842,7 +842,7 @@ async function moment3() {
   )
   const chatId = card.request.chat_id
   const threadQuestion =
-    "In ANNA's chat (customer view), how many messages are below her beard-trim question? Type the number, then Enter:"
+    "In ALEX's chat (customer view), how many messages are below his beard-trim question? Type the number, then Enter:"
   m.before = {
     thread: await operatorCount(threadQuestion),
     sent: sentInChat(chatId),
@@ -880,7 +880,7 @@ async function moment3() {
   }
   check(
     m.after.thread === m.before.thread,
-    `Moment 3 Anna's thread did not change (operator count before ${m.before.thread}, after ${m.after.thread})`,
+    `Moment 3 Alex's thread did not change (operator count before ${m.before.thread}, after ${m.after.thread})`,
   )
   check(
     m.after.sent === m.before.sent,
@@ -939,7 +939,7 @@ async function reconnect() {
   check(rc.noRepair, 'the restart did not ask to pair again')
   await shot('reconnect-root', 'server back: root again, no pairing')
   if (options.finalDm) {
-    await customerCard('post-restart', 'ANNA (customer account 1)', lines.final)
+    await customerCard('post-restart', 'JAMES (customer account 2)', lines.final)
     rc.finalCard = true
     check(true, 'a DM after the restart opened a card')
     await shot('reconnect-card', 'a DM after the restart still opens a card', {
@@ -1095,14 +1095,16 @@ try {
   say(
     `booking day ${r.env.day} (${r.env.spokenDay}), shop ${shop.name} in ${shop.timezone}`,
   )
-  say('name the customer accounts Anna and Omar (Telegram first name) before you start')
+  say(
+    'name the customer accounts Alex and James (Telegram first names) before you start',
+  )
   say('the people will be asked to send, in order:')
   say(`  owner:  /pair CODE (the code appears on the glasses)`)
-  say(`  Anna:   ${lines.anna}`)
-  say(`  Omar:   ${lines.omar}`)
-  say(`  Omar:   ${lines.yes}`)
-  say(`  Anna:   ${lines.beard}`)
-  if (options.finalDm) say(`  Anna:   ${lines.final}`)
+  say(`  Alex:   ${lines.haircut}`)
+  say(`  James:  ${lines.skinFade}`)
+  say(`  James:  ${lines.yes}`)
+  say(`  Alex:   ${lines.beardTrim}`)
+  if (options.finalDm) say(`  James:  ${lines.final}`)
   // The server imports @chairside/shared from dist: a missing or stale build
   // would fail later or strip new protocol fields, after the calendar changed.
   say('building @chairside/shared')
