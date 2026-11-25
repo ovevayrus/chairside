@@ -17,35 +17,35 @@ Keep each ring press and its result together. Leave a beat for the viewer to rea
 
 | Time | Even G2 simulator (left) | Telegram Desktop, customer view (top right) | Google Calendar, week view (bottom right) | Captions |
 | --- | --- | --- | --- | --- |
-| 0:00–0:25 | Sync the voice recording to the 3-2-1 countdown beeps, then reveal Chairside's home screen. | Show David's name at the top of Alex's chat. | Frame Saturday 5 Dec with the afternoon hours visible. | Chairside at David's Barbers<br>Hands full, phone in his pocket |
-| 0:25–0:50 | Hold on `NEW REQUEST` with `Alex · Haircut` and `Sat 5 Dec · 15:00 · ● free (45 min)` legible below it. Show the first action, `Book & reply`, already highlighted. Catch the press, the receipt `● Booked Sat 5 Dec 15:00` and the return home. | Alex sends `Can I get a haircut Saturday 5 Dec at 3pm?` on his phone. Hold on his question and the confirmation from David directly below it. | Show 15:00 free, then `Chairside · Alex · Haircut` from 15:00 to 15:45. | Alex's haircut, 15:00 to 15:45<br>One press books it and replies |
-| 0:50–1:15 | Show `Offer Sat 5 Dec 16:00` already highlighted. Hold through one press. After James replies, catch `● James accepted · Booked Sat 5 Dec 16:00`. | James sends `Can I get a skin fade Saturday 5 Dec at 3pm?` on his phone. Show David's offer. Speed up while James reads it and types `yes`, then show the confirmation. | Keep Alex's 15:00 event visible, then show `Chairside · James · Skin fade` from 16:00 to 16:45. | David offers 16:00<br>James types "yes" on his phone |
-| 1:15–1:45 | Hold Alex's free 17:00 card while the Busy block appears. Show the press on `Book & reply`. Hold on `Just taken · nothing sent` with 17:45 highlighted, then the double press back home. | On his phone, Alex sends `Can you also do a beard trim Saturday 5 Dec at 5pm?` in the same chat. Keep the beard-trim question visible as the last message through the press. | Show the `Busy` block from 17:00 to 17:30 while the card still says free. After the press, hold on the block so viewers can see there's no beard trim. | 17:00 just filled. Nothing sent.<br>Next opening: 17:45 |
-| 1:45–2:05 | End on the home screen. | Leave Alex's confirmation visible. | Hold on the two bookings. | His phone never left his pocket<br>About a minute saved per booking |
+| 0:00–0:43 | Sync the voice recording to the 3-2-1 countdown beeps, then reveal Chairside's home screen. | Show David's name at the top of Alex's chat. | Frame Saturday 5 Dec with the afternoon hours visible. | Chairside at David's Barbers<br>Hands full, phone in his pocket |
+| 0:43–1:20 | Hold on `NEW REQUEST` with `Alex · Haircut` and `Sat 5 Dec · 15:00 · ● free (45 min)` legible below it. Show the first action, `Book & reply`, already highlighted. Catch the press, the receipt `● Booked Sat 5 Dec 15:00` and the return home. | Alex sends `Can I get a haircut Saturday 5 Dec at 3pm?` on his phone. Hold on his question and the confirmation from David directly below it. | Show 15:00 free, then `Chairside · Alex · Haircut` from 15:00 to 15:45. | One press: Google Calendar and Telegram<br>Reply sent from David's own account |
+| 1:20–1:44 | Show `Offer Sat 5 Dec 16:00` already highlighted. Hold through one press. After James replies, catch `● James accepted · Booked Sat 5 Dec 16:00`. | James sends `Can I get a skin fade Saturday 5 Dec at 3pm?` on his phone. Show David's offer. Speed up while James reads it and types `yes`, then show the confirmation. | Keep Alex's 15:00 event visible, then show `Chairside · James · Skin fade` from 16:00 to 16:45. | David offers 16:00<br>James types "yes" on his phone |
+| 1:44–2:14 | Hold Alex's free 17:00 card while the Busy block appears. Show the press on `Book & reply`. Hold on `Just taken · nothing sent` with 17:45 highlighted, then the double press back home. | On his phone, Alex sends `Can you also do a beard trim Saturday 5 Dec at 5pm?` in the same chat. Keep the beard-trim question visible as the last message through the press. | Show the `Busy` block from 17:00 to 17:30 while the card still says free. After the press, hold on the block so viewers can see there's no beard trim. | 17:00 just filled. Nothing sent.<br>No double booking. Next opening: 17:45 |
+| 2:14–2:48 | End on the home screen. | Leave Alex's confirmation visible. | Hold on the two bookings. | His phone never left his pocket<br>No message text stored, no AI on customer chats |
 
 ## Narration
 
-Allow about 1:45 for speech (about 200 words). Each **(press)** marks the moment a ring press happens on screen: pause there, let the result show, then go on.
+Allow about 2:35 for speech (about 280 words; the video runs about 2:50). Each **(press)** marks the moment a ring press happens on screen: pause there, let the result show, then go on.
 
-**0:00–0:25**
+**0:00–0:43**
 
-This is David, halfway through a haircut, with his hands full. With Chairside, David never has to touch his phone. He reads each request on his Even G2 glasses and answers with a press of his Even Realities R1 ring. Today the simulator stands in for both.
+This is David, halfway through a haircut, with his hands full. Like a lot of barbers, he takes bookings in DMs. Each message means stopping mid-cut, or a customer waiting who might book elsewhere. With Chairside, David never has to touch his phone. He reads each request on his Even G2 glasses and answers with a press of his Even Realities R1 ring. Today the simulator stands in for both.
 
-**0:25–0:50**
+**0:43–1:20**
 
-Alex texts David for a haircut on Saturday at three. Seconds later it's on David's glasses, already checked against his calendar. One press books it. **(press)** The haircut lands in his calendar, and Alex gets the confirmation from David's own Telegram account.
+Alex texts David for a haircut on Saturday at three, in their usual Telegram chat. No app, no booking link. Seconds later it's on David's glasses, already checked against his calendar. One press books it. **(press)** That one press wrote to two apps: the haircut is in his Google Calendar, and Alex has his confirmation, sent from David's own account through Telegram Business.
 
-**0:50–1:15**
+**1:20–1:44**
 
-James wants three o'clock too. It's taken, so the card suggests four. One press sends the offer. **(press)** James replies "yes" on his phone, and Chairside books him and confirms it. David doesn't touch a thing.
+James wants three o'clock too. It's taken, so the card suggests four. One press sends the offer. **(press)** James replies "yes" on his phone. Chairside checks that four is still free, books him and confirms. David doesn't touch a thing.
 
-**1:15–1:45**
+**1:44–2:14**
 
-Then Alex asks for a beard trim at five. What if someone grabs that slot while David's reading? I'll block it on his calendar. David presses. **(press)** Chairside checks again and sees five is gone: no booking, no reply. His card suggests five forty-five instead. **(double press)**
+Then Alex asks for a beard trim at five. What if someone grabs that slot while David's reading? I'll block it on his calendar. David presses. **(press)** Chairside checks again, sees five is gone and sends nothing. No double booking. His card suggests five forty-five instead. **(double press)**
 
-**1:45–2:05**
+**2:14–2:48**
 
-That's three requests, and David never touched his phone. It saves him about a minute a booking, but the real win is never having to put the scissors down. He still approves every booking, and Chairside never keeps the message text.
+That's three requests, and David never touched his phone. It saves him about a minute a booking, but the real win is never putting the scissors down. He approves every booking or offer. Chairside never stores the message text and never sends it to an AI. It's for barbers, stylists and nail techs who book through Telegram, and their customers don't change a thing.
 
 ## Retake tips
 
