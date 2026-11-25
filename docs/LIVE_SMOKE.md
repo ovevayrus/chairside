@@ -1,26 +1,36 @@
 # Live smoke checklist (US-015)
 
-Operator checklist for the live end-to-end run with real services. Record every item marked **Record** in `docs/evidence/live-smoke.md`. Date used below: Saturday 5 Dec 2026, shop time zone Asia/Dubai.
+The live end-to-end run with real Telegram and real Google Calendar. Run it with `npm run smoke:live`: the runner starts the server, Vite and the simulator, taps the glasses and inserts the Moment 3 calendar block itself, and writes everything marked **Record** below to `docs/evidence/live-smoke.md` (plus `live-smoke.json` and `live-smoke-*.png`). The people only send Telegram messages, which the runner prints word for word on lines starting `[smoke] >>>`. It records ids, times, counts and statuses, never message text, names or Telegram user and chat ids.
+
+```sh
+npm run smoke:live                        # booking day: the first Saturday at least 2 days ahead
+npm run smoke:live -- --day 2026-12-05    # another day; it must be free 14:00-18:30
+npm run smoke:live -- --pause 3           # seconds each card stays up before the tap
+npm run smoke:live -- --no-final-dm       # skip the DM after the reconnect
+npm run smoke:live -- --keep-demo         # keep the seeded events and the block afterwards
+```
+
+`SHOP_CONFIG_PATH` (relative to `apps/server`, set in the shell or `.env`) picks the shop, for example `../../config/shop.recording.json`. The steps below are what the runner does, and the checklist for doing it by hand. Example date: Saturday 5 Dec 2026; all times are shop-local.
 
 ## A. Prerequisites
 
-1. `apps/server/.env` is filled in (Telegram bot token, Google service-account path and calendar id, pairing settings). Never paste keys into chat.
-2. The Even Hub simulator is installed and the glasses app is built (`npm run build`).
-3. Telegram Desktop is logged in as the customer accounts: Anna and Omar (two sessions or two profiles). Both have opened a chat with the shop bot at least once.
+1. `apps/server/.env` is filled in (Telegram bot token, owner user id, Google service-account path and calendar id, device token pepper) and `DEV_INJECT` is not `1`. Never paste keys into chat.
+2. The Even Hub simulator is installed, and ports 8787, 5173 and 9898 are free.
+3. Telegram Desktop is logged in as the customer accounts, Anna and Omar; one account can play both. In Business mode they message the owner's account, not the bot.
 4. Google Calendar is open in week view on the week of Sat 5 Dec 2026, showing the shop calendar.
 5. Screen layout: simulator left, Telegram Desktop top right, Google Calendar bottom right.
-6. Start the server from the repository root and leave it running. **Record:** start time, server log line showing it is listening.
+6. By hand: start `npm run start:server`, `npm run start:glasses` and `npm run start:simulator` from the repository root. **Record:** start time, server log line showing it is listening.
 
 ## B. Clean start
 
 7. Run `npm run demo:reset`. It prints one line per removed event and `removed N demo event(s)`. **Record:** the output.
 8. Run `npm run demo:seed`. It prints two lines: Sami 14:00-14:45 Haircut and Yusuf 16:15-16:35 Beard trim, today in shop time. **Record:** both event ids and the local times.
 9. Refresh Google Calendar. Confirm both events show with the summary `Chairside · {name} · {service}`. **Record:** screenshot.
-10. Open Anna's and Omar's chats with the bot. **Record:** the message count of each thread (baseline).
+10. Open Anna's and Omar's chats with the owner. **Record:** the message count of each thread (baseline).
 
 ## C. Pairing from scratch
 
-11. Make sure the simulator has no stored pairing (clear the app's storage or use a fresh simulator profile).
+11. Make sure the simulator has no stored pairing. The simulator does not keep app storage between launches, so a fresh launch starts unpaired.
 12. Start the glasses app in the simulator and pair it with the server using the pairing code flow. **Record:** time from launch to the paired screen; screenshot.
 13. Confirm the glasses show the idle/empty queue state.
 
