@@ -54,6 +54,7 @@ import {
   settledFrame,
   startVite,
 } from '../e2e/lib/harness.mjs'
+import { compare } from '../e2e/lib/frames.mjs'
 import { run, start, stop, stopAll, waitFor } from '../e2e/lib/processes.mjs'
 import { findSimulator } from '../e2e/lib/simulator.mjs'
 import { demoContext } from './lib/demo-env.ts'
@@ -330,9 +331,15 @@ async function shot(
   const file = `${String(r.shots.length + 1).padStart(2, '0')}-${name}.png`
   try {
     const frame = await settledFrame(sim, changed ? lastFrame : undefined, 4000)
+    // A required picture of a new state must differ from the previous one;
+    // settledFrame gives up waiting for a change after its deadline.
+    if (required && changed && lastFrame && compare(lastFrame, frame).changed === 0) {
+      throw new Error('the display never changed to the expected state')
+    }
     // `since` is the console entry of the state this picture is for (drawn
     // before the capture began). If the display moved on before the capture
-    // finished, the picture may show something else.
+    // finished, or a later change cannot be placed in time (no simulator
+    // timestamp), the picture may show something else.
     if (since !== undefined) {
       const capturedAt = Date.now()
       await poll()
@@ -340,7 +347,8 @@ async function shot(
         .slice(since + 1)
         .some(
           (entry) =>
-            SCREEN_CHANGE.test(entry.message) && entryTime(entry) <= capturedAt,
+            SCREEN_CHANGE.test(entry.message) &&
+            (typeof entry.ts !== 'number' || entryTime(entry) <= capturedAt),
         )
       if (moved) throw new Error('the display changed before the capture finished')
     }
@@ -489,12 +497,15 @@ async function botUsername() {
 
 async function resetAndSeed() {
   const removed = await resetDemo(calendar, shop, DateTime.now())
-  const seeded = await seedDemoEvents(
-    calendar,
-    shop,
-    DateTime.now(),
-    String(Date.now()),
-  )
+  let seeded
+  try {
+    seeded = await seedDemoEvents(calendar, shop, DateTime.now(), String(Date.now()))
+  } catch (error) {
+    // A seed that failed half-way returns nothing to track, so clear every
+    // demo-marked event again (what demo:reset does) before failing.
+    await resetDemo(calendar, shop, DateTime.now()).catch(() => {})
+    throw error
+  }
   for (const { event } of seeded) {
     created.push({
       id: event.id,
@@ -974,6 +985,14 @@ async function moment3() {
   m.versionAfter = Number(again.match[1])
   const next = firstAction(card.requestId, m.versionAfter)
   m.nextLocal = next?.slot_start_utc ? local(next.slot_start_utc) : undefined
+  // The picture claims a next opening: the card must really lead with one
+  // (a failed availability lookup would leave only "Not now").
+  check(
+    next?.kind === 'offer' &&
+      Date.parse(next.slot_start_utc) > Date.parse(localUtc(day, '17:00')) &&
+      Date.parse(next.slot_start_utc) < Date.parse(localUtc(day, '20:00')),
+    `Moment 3 the card now offers the next opening (got ${describeAction(next)})`,
+  )
   await shot(
     'm3-slot-taken',
     'Moment 3: nothing sent; the card says the slot was just taken and offers the next opening',
@@ -1028,30 +1047,25 @@ async function reconnect() {
   rc.restartedAt = iso(restartedAt)
   rc.listeningS = Math.round((await startServer()) / 10) / 100
   mark('server restarted')
-  // Back means a fresh snapshot from the restarted server, with root on
-  // screen: a root drawn from the cache on reconnect is not enough.
+  // Back means root drawn from a fresh snapshot of the restarted server: a
+  // root drawn from the cache on reconnect, or a fresh draw that failed, is
+  // not enough. The glasses log "root drawn seq=N" only after a draw succeeds.
   const fresh = await waitLine(
     'a fresh state from the restarted server',
-    /\[chairside\] state seq=\d+/,
+    /\[chairside\] state seq=(\d+)/,
     restartFrom,
     60_000,
   )
-  const back = await waitFor(
-    'root on screen after the restart',
+  const freshSeq = Number(fresh.match[1])
+  const drawn = await waitLine(
+    'root drawn from the fresh state',
+    /\[chairside\] root drawn seq=(\d+)/,
+    sim.entries.indexOf(fresh.entry),
     15_000,
-    async () => {
-      await poll()
-      const last = lastIndexOf(sim.entries, (entry) =>
-        /\[chairside\] screen=/.test(entry.message),
-      )
-      return last >= restartFrom &&
-        /screen=root$/.test(sim.entries[last].message)
-        ? { index: Math.max(last, sim.entries.indexOf(fresh.entry)) }
-        : undefined
-    },
-    100,
+    (match) => Number(match[1]) >= freshSeq,
   )
-  rc.backS = secondsBetween(restartedAt, entryTime(sim.entries[back.index]))
+  const back = { index: sim.entries.indexOf(drawn.entry) }
+  rc.backS = secondsBetween(restartedAt, drawn.at)
   const after = sim.entries.slice(from).map((entry) => entry.message)
   rc.links = after
     .filter((message) => /\] link=/.test(message))
@@ -1147,23 +1161,45 @@ function writePassEvidence() {
   mkdirSync(backup, { recursive: true })
   const previous = readdirSync(evidenceDir).filter((file) => PUBLIC_FILE.test(file))
   for (const file of previous) copyFileSync(join(evidenceDir, file), join(backup, file))
+  const incoming = [
+    ...r.shots.filter((s) => s.file).map((s) => [s.file, `live-smoke-${s.file}`]),
+    ['live-smoke.md', 'live-smoke.md'],
+    ['live-smoke.json', 'live-smoke.json'],
+  ]
+  // Undo exactly what happened: a locked file must not stop the restore.
+  const removed = []
+  const added = []
   try {
     for (const file of previous) {
       rmSync(join(evidenceDir, file), { force: true, maxRetries: 3 })
+      removed.push(file)
     }
-    for (const s of r.shots) {
-      if (s.file) renameSync(join(runDir, s.file), join(evidenceDir, `live-smoke-${s.file}`))
+    for (const [from, to] of incoming) {
+      renameSync(join(runDir, from), join(evidenceDir, to))
+      added.push(to)
     }
-    renameSync(join(runDir, 'live-smoke.md'), join(evidenceDir, 'live-smoke.md'))
-    renameSync(join(runDir, 'live-smoke.json'), join(evidenceDir, 'live-smoke.json'))
   } catch (error) {
-    for (const file of readdirSync(evidenceDir)) {
-      if (PUBLIC_FILE.test(file)) rmSync(join(evidenceDir, file), { force: true, maxRetries: 3 })
+    for (const file of added) {
+      try {
+        rmSync(join(evidenceDir, file), { force: true, maxRetries: 3 })
+      } catch {
+        // Keep restoring the rest.
+      }
     }
-    for (const file of previous) copyFileSync(join(backup, file), join(evidenceDir, file))
+    for (const file of removed) {
+      try {
+        copyFileSync(join(backup, file), join(evidenceDir, file))
+      } catch {
+        // Keep restoring the rest.
+      }
+    }
     throw error
   }
-  rmSync(runDir, { recursive: true, force: true, maxRetries: 3 })
+  try {
+    rmSync(runDir, { recursive: true, force: true, maxRetries: 3 })
+  } catch {
+    // Leftover staging is harmless: the folder is git-ignored.
+  }
   say('evidence: docs/evidence/live-smoke.md and live-smoke.json')
 }
 
@@ -1190,7 +1226,12 @@ async function onlyOwnScreens() {
   )
   try {
     const today = DateTime.now().setZone(shop.timezone).toISODate()
-    const real = (await dayEvents(today)).filter((event) => !isDemoEvent(event))
+    // Root shows upcoming appointments only: one that ended before the run
+    // started could never have appeared.
+    const startedMs = Date.parse(r.startedAt)
+    const real = (await dayEvents(today)).filter(
+      (event) => !isDemoEvent(event) && Date.parse(event.endUtc) > startedMs,
+    )
     note(
       real.length === 0,
       `today's calendar still holds demo events only, so the root screen named no real customer (non-demo: ${real.length})`,
