@@ -61,12 +61,12 @@ We started with open-source libraries and no Chairside code from before Nov 23. 
 
 ## Links
 
-- Repository {{repo_url}}
-- Demo video {{video_url}}
+- Repository: https://github.com/ovevayrus/chairside
+- Demo video: https://youtu.be/x62mesv54SA
 
 ## Human actions left
 
-- [ ] Create the public GitHub repository and push Chairside.
-- [ ] Record the demo and upload the video.
+- [x] Create the public GitHub repository and push Chairside.
+- [x] Record the demo and upload the video.
 - [ ] Submit the BUIDL on DoraHacks.
 - [ ] RSVP for Demo Day on Dec 3.
