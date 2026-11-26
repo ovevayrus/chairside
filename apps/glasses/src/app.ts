@@ -150,6 +150,7 @@ export class ChairsideApp {
   private ready = false
   private screenLogged?: ScreenName
   private receiptLogged?: View
+  private rootSeqLogged?: number
   private closed = false
 
   constructor(
@@ -222,6 +223,7 @@ export class ChairsideApp {
       this.renderQueued = false
       if (this.closed) return
       const view = this.view
+      const seq = this.lastSeq
       const { page, card } = this.page()
       try {
         await this.p.show(page, this.menu())
@@ -244,10 +246,19 @@ export class ChairsideApp {
         this.screenLogged = page.screen
         this.p.log(`screen=${page.screen}`)
       }
+      // Root drawn from a newer snapshot than the last one logged: proof that
+      // fresh server state reached the display, not just the cached root.
+      if (page.screen === 'root' && seq !== this.rootSeqLogged) {
+        this.rootSeqLogged = seq
+        this.p.log(`root drawn seq=${seq}`)
+      }
       // Once per receipt, after it is drawn: two receipts in a row log one
       // screen change. Titles are fixed words, never customer text.
       if (view.name === 'receipt' && view !== this.receiptLogged) {
         this.receiptLogged = view
+        // Shown only now that it is on the glasses; until then a pending
+        // receipt still blocks duplicates (see knownReceipt).
+        if (view.key) this.shownKeys.set(view.key, this.p.now())
         this.p.log(
           `receipt title=${view.title}${view.key ? ` key=${view.key}` : ''}`,
         )
@@ -591,10 +602,17 @@ export class ChairsideApp {
    */
   private ownReceipt(requestId?: string, idempotencyKey?: string): boolean {
     if (idempotencyKey !== undefined)
-      return (
-        this.ownKeys.has(idempotencyKey) || this.shownKeys.has(idempotencyKey)
-      )
+      return this.ownKeys.has(idempotencyKey) || this.knownReceipt(idempotencyKey)
     return this.ownAction(requestId)
+  }
+
+  /** A receipt for this key was drawn, is on screen waiting to draw, or is queued. */
+  private knownReceipt(key: string): boolean {
+    return (
+      this.shownKeys.has(key) ||
+      (this.view.name === 'receipt' && this.view.key === key) ||
+      this.receipts.some((receipt) => receipt.key === key)
+    )
   }
 
   /** Forgets action keys older than KEY_MEMORY_MS, also on a device that never taps. */
@@ -697,8 +715,8 @@ export class ChairsideApp {
     receipt: Omit<Extract<View, { name: 'receipt' }>, 'name'>,
   ) {
     this.view = { name: 'receipt', ...receipt }
-    if (receipt.key) this.shownKeys.set(receipt.key, this.p.now())
-    // The timer starts when this receipt is drawn (see render()).
+    // The timer starts, and the key counts as shown, when this receipt is
+    // drawn (see render()).
     this.clearTimer('receipt')
     this.render()
   }
@@ -806,7 +824,7 @@ export class ChairsideApp {
     const who = card.lines[0]
     if (response.status === 'ok') {
       this.cards = this.cards.filter((c) => c.requestId !== requestId)
-      if (executed !== undefined && this.shownKeys.has(executed)) {
+      if (executed !== undefined && this.knownReceipt(executed)) {
         // Another device's identical tap: its receipt is already shown.
         this.view = { name: 'root' }
         this.reconcile()

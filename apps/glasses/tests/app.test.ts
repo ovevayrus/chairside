@@ -527,6 +527,25 @@ describe('cards', () => {
     ).toEqual(['receipt title=Done key=other-device-key-0001'])
   })
 
+  it('logs root drawn for a snapshot only after the glasses really drew it', async () => {
+    const env = await paired()
+    expect(env.logs).toContain('root drawn seq=1')
+    // The bridge fails: the fresh snapshot arrives but never reaches the display.
+    const show = env.platform.show
+    env.platform.show = async () => {
+      throw new Error('bridge lost')
+    }
+    env.live().onFrame(state(2), 'socket')
+    await settle()
+    expect(env.logs).toContain('state seq=2')
+    expect(env.logs).toContain('render failed screen=root')
+    expect(env.logs).not.toContain('root drawn seq=2')
+    env.platform.show = show
+    env.live().onFrame(state(3), 'socket')
+    await settle()
+    expect(env.logs).toContain('root drawn seq=3')
+  })
+
   it('counts a receipt\'s 2 s from when the glasses draw it, not from when it was queued', async () => {
     const env = await paired()
     env.live().onFrame({ type: 'card.upsert', seq: 2, card }, 'socket')
