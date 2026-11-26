@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-11-26T05:41:49.464Z",
+  "startedAt": "2026-11-26T06:07:08.271Z",
   "ok": true,
   "env": {
     "node": "v24.13.0",
@@ -7,8 +7,8 @@
     "telegramMode": "business",
     "shopConfig": "shop.recording.json",
     "timezone": "America/New_York",
-    "day": "2027-01-09",
-    "spokenDay": "Saturday 9 Jan",
+    "day": "2027-01-23",
+    "spokenDay": "Saturday 23 Jan",
     "pauseS": 3
   },
   "checks": [
@@ -38,7 +38,7 @@
     },
     {
       "ok": true,
-      "label": "Moment 1 parsed a haircut at 15:00 (got book, haircut, Sat 9 Jan 15:00)"
+      "label": "Moment 1 parsed a haircut at 15:00 (got book, haircut, Sat 23 Jan 15:00)"
     },
     {
       "ok": true,
@@ -46,7 +46,7 @@
     },
     {
       "ok": true,
-      "label": "Moment 1: the highlighted action is Book & reply at 15:00 (got book Sat 9 Jan 15:00)"
+      "label": "Moment 1: the highlighted action is Book & reply at 15:00 (got book Sat 23 Jan 15:00)"
     },
     {
       "ok": true,
@@ -66,7 +66,7 @@
     },
     {
       "ok": true,
-      "label": "Moment 1 booked 15:00 (got Sat 9 Jan 15:00-15:45)"
+      "label": "Moment 1 booked 15:00 (got Sat 23 Jan 15:00-15:45)"
     },
     {
       "ok": true,
@@ -94,7 +94,7 @@
     },
     {
       "ok": true,
-      "label": "Moment 2 parsed a skin fade at 15:00 (got book, skin_fade, Sat 9 Jan 15:00)"
+      "label": "Moment 2 parsed a skin fade at 15:00 (got book, skin_fade, Sat 23 Jan 15:00)"
     },
     {
       "ok": true,
@@ -102,7 +102,7 @@
     },
     {
       "ok": true,
-      "label": "Moment 2: the highlighted action is an offer later that afternoon (got offer Sat 9 Jan 16:00)"
+      "label": "Moment 2: the highlighted action is an offer later that afternoon (got offer Sat 23 Jan 16:00)"
     },
     {
       "ok": true,
@@ -134,7 +134,7 @@
     },
     {
       "ok": true,
-      "label": "Moment 2 booked the offered time (got Sat 9 Jan 16:00-16:45)"
+      "label": "Moment 2 booked the offered time (got Sat 23 Jan 16:00-16:45)"
     },
     {
       "ok": true,
@@ -166,7 +166,7 @@
     },
     {
       "ok": true,
-      "label": "Moment 3 parsed a beard trim at 17:00 (got book, beard_trim, Sat 9 Jan 17:00)"
+      "label": "Moment 3 parsed a beard trim at 17:00 (got book, beard_trim, Sat 23 Jan 17:00)"
     },
     {
       "ok": true,
@@ -174,7 +174,7 @@
     },
     {
       "ok": true,
-      "label": "Moment 3: the highlighted action is Book & reply at 17:00 (got book Sat 9 Jan 17:00)"
+      "label": "Moment 3: the highlighted action is Book & reply at 17:00 (got book Sat 23 Jan 17:00)"
     },
     {
       "ok": true,
@@ -186,7 +186,7 @@
     },
     {
       "ok": true,
-      "label": "Moment 3 the card now offers the next opening (got offer Sat 9 Jan 17:45)"
+      "label": "Moment 3 the card now offers the next opening (got offer Sat 23 Jan 17:45)"
     },
     {
       "ok": true,
@@ -194,7 +194,7 @@
     },
     {
       "ok": true,
-      "label": "Moment 3 sent no message (before 8, after 8)"
+      "label": "Moment 3 sent no message (before 10, after 10)"
     },
     {
       "ok": true,
@@ -305,103 +305,103 @@
   ],
   "timeline": [
     {
-      "at": "2026-11-26T05:41:51.293Z",
+      "at": "2026-11-26T06:07:10.049Z",
       "text": "clean start: removed 0 demo event(s), seeded 2"
     },
     {
-      "at": "2026-11-26T05:41:53.407Z",
-      "text": "server listening after 1.8 s"
+      "at": "2026-11-26T06:07:12.311Z",
+      "text": "server listening after 1.9 s"
     },
     {
-      "at": "2026-11-26T05:41:53.845Z",
+      "at": "2026-11-26T06:07:12.716Z",
       "text": "launching the simulator with fresh storage (pairing from scratch)"
     },
     {
-      "at": "2026-11-26T05:41:54.943Z",
+      "at": "2026-11-26T06:07:13.786Z",
       "text": "waiting for the owner to pair"
     },
     {
-      "at": "2026-11-26T05:42:15.057Z",
+      "at": "2026-11-26T06:08:00.041Z",
       "text": "paired"
     },
     {
-      "at": "2026-11-26T05:42:15.061Z",
+      "at": "2026-11-26T06:08:00.045Z",
       "text": "waiting for the Moment 1 DM"
     },
     {
-      "at": "2026-11-26T05:42:26.494Z",
-      "text": "Moment 1 card shown (request 3d02d92e-223d-4611-8afa-3de873771cb2)"
+      "at": "2026-11-26T06:09:50.995Z",
+      "text": "Moment 1 card shown (request a561f2b4-c78a-4074-91e6-dba4e3993c69)"
     },
     {
-      "at": "2026-11-26T05:42:29.754Z",
-      "text": "tap (request 3d02d92e-223d-4611-8afa-3de873771cb2)"
+      "at": "2026-11-26T06:09:54.291Z",
+      "text": "tap (request a561f2b4-c78a-4074-91e6-dba4e3993c69)"
     },
     {
-      "at": "2026-11-26T05:42:33.011Z",
+      "at": "2026-11-26T06:09:57.761Z",
       "text": "Moment 1 done"
     },
     {
-      "at": "2026-11-26T05:42:33.012Z",
+      "at": "2026-11-26T06:09:57.762Z",
       "text": "waiting for the Moment 2 DM"
     },
     {
-      "at": "2026-11-26T05:43:00.604Z",
-      "text": "Moment 2 card shown (request d3b04073-fca6-4ded-bd2e-146856a89aae)"
+      "at": "2026-11-26T06:10:51.389Z",
+      "text": "Moment 2 card shown (request feccb718-7992-4da1-a456-09e65b23ed2b)"
     },
     {
-      "at": "2026-11-26T05:43:03.873Z",
-      "text": "tap (request d3b04073-fca6-4ded-bd2e-146856a89aae)"
+      "at": "2026-11-26T06:10:54.625Z",
+      "text": "tap (request feccb718-7992-4da1-a456-09e65b23ed2b)"
     },
     {
-      "at": "2026-11-26T05:43:04.646Z",
+      "at": "2026-11-26T06:10:55.531Z",
       "text": "waiting for the \"yes\""
     },
     {
-      "at": "2026-11-26T05:43:14.303Z",
+      "at": "2026-11-26T06:11:07.915Z",
       "text": "offer accepted"
     },
     {
-      "at": "2026-11-26T05:43:16.131Z",
+      "at": "2026-11-26T06:11:09.819Z",
       "text": "Moment 2 done"
     },
     {
-      "at": "2026-11-26T05:43:16.132Z",
+      "at": "2026-11-26T06:11:09.820Z",
       "text": "waiting for the Moment 3 DM"
     },
     {
-      "at": "2026-11-26T05:43:32.600Z",
-      "text": "Moment 3 card shown (request 5c4727eb-b91f-48ad-bfc5-f0ddd74a1bbf)"
+      "at": "2026-11-26T06:11:41.399Z",
+      "text": "Moment 3 card shown (request 11c06dc8-b231-4a57-9bcd-17b4b9a81192)"
     },
     {
-      "at": "2026-11-26T05:43:33.246Z",
-      "text": "foreign block inserted at 2027-01-09 17:00-17:30"
+      "at": "2026-11-26T06:11:42.265Z",
+      "text": "foreign block inserted at 2027-01-23 17:00-17:30"
     },
     {
-      "at": "2026-11-26T05:44:19.102Z",
-      "text": "tap (request 5c4727eb-b91f-48ad-bfc5-f0ddd74a1bbf)"
+      "at": "2026-11-26T06:11:55.420Z",
+      "text": "tap (request 11c06dc8-b231-4a57-9bcd-17b4b9a81192)"
     },
     {
-      "at": "2026-11-26T05:44:30.030Z",
+      "at": "2026-11-26T06:11:57.942Z",
       "text": "Moment 3 done"
     },
     {
-      "at": "2026-11-26T05:44:31.286Z",
+      "at": "2026-11-26T06:11:59.050Z",
       "text": "server stopped"
     },
     {
-      "at": "2026-11-26T05:44:34.537Z",
+      "at": "2026-11-26T06:12:01.994Z",
       "text": "server restarted"
     },
     {
-      "at": "2026-11-26T05:44:37.180Z",
+      "at": "2026-11-26T06:12:02.901Z",
       "text": "waiting for the post-restart DM"
     },
     {
-      "at": "2026-11-26T05:45:30.366Z",
-      "text": "post-restart card shown (request 99ee4610-50dd-426a-8aa7-82958ed00de2)"
+      "at": "2026-11-26T06:12:20.277Z",
+      "text": "post-restart card shown (request e7f93065-b792-46f9-8d10-4a2de6f10b28)"
     },
     {
-      "at": "2026-11-26T05:45:30.609Z",
+      "at": "2026-11-26T06:12:20.517Z",
       "text": "reconnect done"
     }
   ],
@@ -409,95 +409,95 @@
     "removed": 0,
     "seeded": [
       {
-        "id": "1gt9svtj0jsb2372qbucjg412u",
+        "id": "ti2fv8elakq7b60mj7gvap03f5",
         "local": "2026-11-26 14:00-14:45"
       },
       {
-        "id": "p07cmhnlq9tlf293hgbv70o7t2",
+        "id": "o8tics77uhqrlsjij7m018vu66",
         "local": "2026-11-26 16:15-16:35"
       }
     ]
   },
   "pairing": {
-    "readyS": 0.84,
-    "launchToCodeS": 0.74,
-    "codeToPairedS": 20.15,
+    "readyS": 0.8,
+    "launchToCodeS": 0.75,
+    "codeToPairedS": 46.28,
     "pairedToLiveS": 0.01
   },
   "moment1": {
-    "requestId": "3d02d92e-223d-4611-8afa-3de873771cb2",
+    "requestId": "a561f2b4-c78a-4074-91e6-dba4e3993c69",
     "dmMessageIds": [
-      325267
+      325287
     ],
-    "parsed": "book, haircut, Sat 9 Jan 15:00",
-    "telegramToCardS": 3.46,
-    "receivedToCardS": 2.8,
+    "parsed": "book, haircut, Sat 23 Jan 15:00",
+    "telegramToCardS": 2.98,
+    "receivedToCardS": 2.81,
     "status": "ok",
-    "actionId": "29f4c174-ae3a-40fb-a70d-4601cd5b7915",
-    "tapToServerS": 0.02,
-    "tapToReceiptS": 1.21,
-    "replyMessageId": 325268,
-    "tapToReplyS": 0.99,
-    "dmToReplyS": 7.74,
-    "eventId": "l0so8a6c37nll4njmbq1k5641o",
-    "eventLocal": "Sat 9 Jan 15:00-15:45",
+    "actionId": "226dfc7e-b0ed-4025-abad-c8411e6d8f78",
+    "tapToServerS": 0.03,
+    "tapToReceiptS": 1.39,
+    "replyMessageId": 325288,
+    "tapToReplyS": 1.17,
+    "dmToReplyS": 7.46,
+    "eventId": "rt6gnmgrobkknpgjmq3ghlsfae",
+    "eventLocal": "Sat 23 Jan 15:00-15:45",
     "eventVerified": true
   },
   "moment2": {
-    "requestId": "d3b04073-fca6-4ded-bd2e-146856a89aae",
+    "requestId": "feccb718-7992-4da1-a456-09e65b23ed2b",
     "dmMessageIds": [
-      325269
+      325289
     ],
-    "telegramToCardS": 3.58,
-    "offerId": "9ade8222-3a27-41cd-a67e-a70425bf862b",
-    "offerLocal": "Sat 9 Jan 16:00-16:45",
-    "offerMessageId": 325270,
+    "telegramToCardS": 3.28,
+    "offerId": "97480ee6-52f8-40d0-97d1-00414e1de5ac",
+    "offerLocal": "Sat 23 Jan 16:00-16:45",
+    "offerMessageId": 325290,
     "offerStatusAfterTap": "active",
     "yesMessageIds": [
-      325271
+      325291
     ],
-    "yesToBookedS": 3.62,
-    "bookingMessageId": 325272,
-    "eventId": "784005rvmlla4fajs0oroo71o1",
-    "eventLocal": "Sat 9 Jan 16:00-16:45",
+    "yesToBookedS": 3.91,
+    "bookingMessageId": 325292,
+    "eventId": "i3031o3vmvb97dkeakubof5s10",
+    "eventLocal": "Sat 23 Jan 16:00-16:45",
     "eventVerified": true,
     "offerStatus": "accepted"
   },
   "moment3": {
-    "requestId": "5c4727eb-b91f-48ad-bfc5-f0ddd74a1bbf",
-    "slotLocal": "Sat 9 Jan 17:00",
-    "blockId": "tm96htku57t3fsrprt5hac93iv",
-    "blockStartUtc": "2027-01-09T22:00:00.000Z",
-    "blockEndUtc": "2027-01-09T22:30:00.000Z",
-    "blockLocal": "2027-01-09 17:00-17:30",
+    "requestId": "11c06dc8-b231-4a57-9bcd-17b4b9a81192",
+    "slotLocal": "Sat 23 Jan 17:00",
+    "blockId": "1lo71igjingqnums4fal48kg9p",
+    "blockStartUtc": "2027-01-23T22:00:00.000Z",
+    "blockEndUtc": "2027-01-23T22:30:00.000Z",
+    "blockLocal": "2027-01-23 17:00-17:30",
     "before": {
       "thread": 0,
-      "sent": 8,
+      "sent": 10,
       "events": 2
     },
     "status": "slot_taken",
     "versionAfter": 2,
-    "nextLocal": "Sat 9 Jan 17:45",
+    "nextLocal": "Sat 23 Jan 17:45",
     "after": {
-      "sent": 8,
+      "sent": 10,
       "events": 2,
       "thread": 0
     }
   },
   "reconnect": {
-    "stoppedAt": "2026-11-26T05:44:30.030Z",
-    "statusS": 2.3,
-    "restartedAt": "2026-11-26T05:44:32.639Z",
-    "listeningS": 1.9,
-    "backS": 4.25,
+    "stoppedAt": "2026-11-26T06:11:57.942Z",
+    "statusS": 2.13,
+    "restartedAt": "2026-11-26T06:12:00.376Z",
+    "listeningS": 1.62,
+    "backS": 2.23,
     "links": [
       "link=connecting",
       "link=offline",
-      "link=polling"
+      "link=live"
     ],
     "noRepair": true,
     "finalCard": true
   },
   "cleanup": "removed this run's 3 demo event(s) (the seeded appointments and the Moment 3 block); the Moment 1 and 2 bookings stay; the last DM stays as a waiting card",
-  "finishedAt": "2026-11-26T05:45:33.640Z"
+  "finishedAt": "2026-11-26T06:12:23.313Z"
 }
