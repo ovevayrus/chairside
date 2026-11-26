@@ -31,7 +31,7 @@ Even G2 glasses ◄── BLE ── Even Realities app WebView: apps/glasses �
 
 ## The booking guarantee
 
-When the owner taps, the executor runs these steps under a per-shop lock:
+For a new booking, the executor runs these steps under a per-shop lock when the owner taps.
 
 1. Write an `actions` row first (unique per request, version and action), so a repeated or concurrent tap can't run twice.
 2. Reject a stale card version.
@@ -42,6 +42,22 @@ When the owner taps, the executor runs these steps under a per-shop lock:
 7. Record `send_started`, then send the reply once, with an 8-second timeout and no automatic retry. A timeout becomes "reply status unknown" for the owner, never a resend.
 
 On startup, interrupted actions are reconciled without sending anything: a calendar write without a reply becomes a "Send now?" card, and an interrupted send becomes "reply status unknown". A customer's "yes" to an offer goes through the same steps.
+
+## Booking lifecycle
+
+A new booking starts `active`. When the owner taps to move or shift it, Chairside rechecks availability and keeps the original appointment until it has written and verified the replacement. SQLite marks the old row `moved` and adds an `active` row linked by `replaced_booking_id`. A unique index allows one replacement per booking row. A later change applies to the current active row. If the requested slot is taken, the card can offer the next opening. When the customer says "yes", Chairside rechecks that slot and moves the same appointment.
+
+Chairside removes an old event only if its ID, private booking marker and exact interval match. A move records `cleanup_pending` until this check and any needed deletion finish. If cleanup fails, the receipt flags the old slot and startup recovery retries it. A cancellation uses the same ownership check, marks the booking `cancelled`, and then confirms in Telegram. Startup recovery also finishes interrupted calendar changes and leaves any unsent confirmation for the owner to approve.
+
+## Running-late impact
+
+Chairside uses the first confirmed appointment in the chat that starts on the shop's local day and has yet to end. For "be there in 20", it counts from the current time and compares the result with the booked start. An early arrival leaves the message for the owner to handle. If the customer gives no time, the card offers to ask how late.
+
+The server keeps the appointment's duration and checks the shifted time against shop hours and busy events. It leaves out the original event if its ownership details still match. To build the preview, the server looks at busy events starting at or after the original start and before local midnight. It picks the first one whose end plus buffer extends past the shifted start. The card compares that event's start with the shifted end plus buffer to show whether the shift fits or how many minutes it runs over.
+
+The card shows a first name only when the event carries Chairside's private booking marker and uses the Chairside summary format. Other events appear as `busy`. A shift that ends after closing has its own message. If the shift cannot fit, the card can offer the next opening.
+
+The server stores the preview in `requests.late_impact` so the card can show it again after a reconnect.
 
 ## Data
 

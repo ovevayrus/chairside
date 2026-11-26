@@ -18,7 +18,7 @@ James asks for a skin fade at 3pm. Alex has that slot, so David's card highlight
 
 Alex returns to his chat with David and asks, "Can you also do a beard trim Saturday 5 Dec at 5pm?" The card shows 17:00 free. While David reads it, a 30-minute "Busy" block appears on his calendar at that time. He presses to book. Chairside checks again, sends Alex no message and adds no event. His beard-trim question is still the last message, below his haircut question and David's confirmation. David sees "Just taken · nothing sent" and can offer 17:45.
 
-The same interruption happens to stylists and nail techs who book through DMs. Their customers can keep using the chats they already have. The person doing the work gets to decide what goes on the calendar without typing a reply in front of a client.
+"Can I come at 4 instead?" brings up WANTS TO MOVE. Move & reply checks the new time again, books it before freeing the old slot and confirms in the chat. If the time is taken, David can offer the next opening and the customer's "yes" moves the same appointment. "I need to cancel" brings up WANTS TO CANCEL. Cancel & reply removes only Chairside's event and confirms in the chat. RUNNING LATE shows whether a delay fits before the next calendar event. David can approve the shift if it fits or offer another time.
 
 ## Tracks
 
@@ -28,15 +28,25 @@ The same interruption happens to stylists and nail techs who book through DMs. T
 
 ## What's proven live
 
+The live run used the Even simulator with real Telegram Business and Google Calendar. The owner booked an appointment, sent an offer the customer accepted with "yes", and saw the card update after a slot was taken while he was reading it. The run also covered pairing and reconnecting. [Live run](evidence/live-smoke.md)
+
 - Telegram granted the Business connection reply rights. A customer DM reached the server in 0.3 seconds, and a reply from the owner's account appeared in the customer's thread.
 - An inline button on a Business message returned a callback. The bot also marked the incoming message as read.
 - Google Calendar returned free/busy data and accepted an event with a deterministic ID. On a repeat insert, Chairside recognized its own event. It then deleted the test event.
+
+## Verified in the simulator
+
+These changes passed automated tests and an Even simulator run with test stand-ins for Telegram and Google Calendar. They still need a run with real accounts. [Simulator run, shots 15-20](evidence/e2e-full.md)
+
+- Move & reply replaced the 15:00 booking with a 16:00 booking and sent a confirmation.
+- A 15-minute delay fit before the next appointment. The shift moved the booking to 16:15 and sent a confirmation.
+- Cancel & reply removed the 16:15 booking and confirmed in the chat.
 
 ## Privacy and safety
 
 - The shop server parses customer messages with fixed rules. It never stores or logs the text or sends it to a third-party AI. A canary test checks normal and error logs, the database and its write-ahead log.
 - Customer booking records contain only IDs, first name, service, times and statuses. Google Calendar gets the details needed for the appointment.
-- The owner approves every booking or offer. A customer's "yes" accepts only the time the owner offered. Chairside checks the event for overlaps before sending a booking confirmation.
+- The owner approves bookings, changes and offers from the card. A customer's "yes" accepts only the time the owner offered. Chairside checks the event for overlaps before sending a booking confirmation.
 - Shop-bot customers can erase their Chairside records with `/forget`. Business-chat customers can contact the owner. Owners can erase their shop's records with `/delete_my_data` in their private chat with the bot.
 
 ## Limits
@@ -44,6 +54,14 @@ The same interruption happens to stylists and nail techs who book through DMs. T
 - Telegram Business permits replies within 24 hours of the customer's last incoming message. Chairside doesn't send reminders or bulk late notices.
 - The parser handles English booking requests. A missing day or time gives the owner a question to send.
 - Cards appear while Chairside is open. We verified the glasses app only in the Even simulator. The ring and the touchpads on the glasses' temples share the same SDK gestures (press, double press and swipe). We still need to test ring input on hardware and check the system exit dialog and its cancel gesture on real G2 glasses.
+
+### Next step for shops with several barbers
+
+For a shop with two or three barbers sharing a Telegram account and calendar today, we'd keep the shop's account and list each barber and their calendar in the shop configuration. Each barber would pair their own glasses. A request for an appointment "with Sam" would go to Sam. If the customer doesn't name a barber, the request would go to one who's free at that time. The card would say "free with Sam", the booking would go on Sam's calendar, and the reply from the shop's account would name Sam.
+
+## Who uses it and who pays
+
+The barber, stylist or nail tech wears G2 through the workday and handles DMs with a client in the chair. Customers keep using their usual chats, and the person doing the work decides what goes on the calendar. Our hypothesis is that the shop owner would pay a monthly subscription per chair. We'd test that with solo barbers first.
 
 ## Built with
 

@@ -46,9 +46,29 @@ The owner's bot can reply within 24 hours of the customer's last incoming messag
 
 Chairside processes each shop's bookings one at a time and checks availability again at approval or acceptance. After writing an event, it checks for an overlapping entry from another calendar user. If it finds one, it removes its own event and sends no confirmation.
 
-### What's the business model?
+### What if a customer needs to move or cancel?
 
-Our hypothesis is that an independent shop would pay a subscription to handle Telegram bookings during appointments. We'd test that with solo barbers who already run their book through DMs.
+"Can I come at 4 instead?" opens WANTS TO MOVE on the owner's glasses. The card can show `Sat 23 Jan 15:00 ▶ 16:00 · ● free`. Move & reply checks the slot again when the owner presses. Chairside writes the new event before removing the old one, so the customer keeps an appointment. Removing the old event frees that slot, and the confirmation comes from the owner's account. Each booking record can be replaced once. If the requested time is taken, the owner can offer the next opening. The customer's "yes" moves the same appointment after another check.
+
+"Push it back an hour" starts from the booked time. Chairside keeps the requested move on the booking's day unless the customer names another day. "Also" or "another" signals a new booking, as does a request for a separate service or for someone else. If the customer asks to change the service on the existing booking, the owner reviews the request.
+
+"I need to cancel" opens WANTS TO CANCEL. Cancel & reply removes only Chairside's own event and confirms in the customer's chat.
+
+### What if a customer is running late?
+
+"Running 15 min late" opens RUNNING LATE with the delay and the proposed start. The card shows how the shift affects the next event that day, with a line like "Next: James 16:00 · fits" or an overlap such as "10 min over". The card uses first names for Chairside bookings and "busy" for other events.
+
+If the shift fits, the owner can approve it with one press. Chairside checks again, writes the replacement before removing the original event and replies from the owner's account. If the shift won't fit, the owner can offer the next opening. With no time in the message, the card lets the owner ask how late. "Be there in 20" counts from now, so an early arrival leaves the appointment time alone.
+
+Automated tests and the Even simulator with test stand-ins for Telegram and Google Calendar covered moving, cancelling and late arrivals. The live run with real accounts covered booking, offers and acceptance, a slot taken while the owner read the card, pairing, and reconnecting. [Simulator run](evidence/e2e-full.md) and [live run](evidence/live-smoke.md)
+
+### How would it work with several barbers?
+
+We'd keep the shop's shared Telegram account and list each barber and their calendar in the shop configuration. Each barber would pair their own glasses. Chairside would send a request for an appointment "with Sam" to Sam. If the customer doesn't name a barber, the request would go to one who's free then. The card would say "free with Sam", the event would go on Sam's calendar, and the reply from the shop's account would name Sam.
+
+### Who uses it every day, and who pays?
+
+The barber, stylist or nail tech wears G2 through the workday and answers booking messages with a client in the chair. Our hypothesis is that the shop owner would pay monthly for each chair. We'd test that first with solo barbers who already take appointments through DMs.
 
 ### What's next?
 

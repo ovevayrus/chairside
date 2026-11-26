@@ -1,29 +1,31 @@
 # Chairside
 
-Chairside is a Telegram front desk for service workers who have a client in front of them and a booking request on their phone. A barber can read the request on Even G2 glasses and tap once to book it. The customer gets a reply from the barber's own Telegram account, in their usual thread, and the barber gets an appointment in Google Calendar.
+Chairside is a Telegram front desk for service workers who have a client in front of them. A barber can read booking requests and changes on Even G2 glasses and act with a tap. The customer gets a reply from the barber's own Telegram account in their usual thread, and Chairside updates Google Calendar.
 
-## How it works
+## What Chairside handles
 
-- The owner connects a Telegram Business bot to selected private chats and shares the shop's Google Calendar with Chairside.
-- A customer DMs the owner. The shop server uses fixed rules to read the service, date and time, then checks the calendar.
-- A card on the glasses shows who asked, what they want and whether the time is free. Tapping "Book & reply" checks the slot again, writes the event and sends the confirmation.
-- If the slot is taken, the card highlights the next opening. The owner taps to offer it in the same thread.
-- A plain "yes" accepts the owner's offer. Chairside checks availability again before booking and replying.
-- If someone takes the slot while the owner is reading the card, the tap sends nothing. The card shows the next opening the owner can offer.
+The owner connects a Telegram Business bot to selected private chats and shares the shop's Google Calendar. Chairside reads incoming requests with fixed rules and shows them on the glasses.
+
+- Book a free slot. "Book & reply" checks the calendar again, writes the event and confirms in the chat.
+- Offer the next opening. A customer's "yes" accepts the offer, and Chairside checks the slot again before booking.
+- Catch a slot taken while the owner is reading the card. The tap sends nothing and the card shows the next opening to offer.
+- Move a booking when a customer says "Can I come at 4 instead?" "Move & reply" rechecks the slot and writes the new event before removing the old one. If the slot is taken, the owner can offer the next opening and the customer's "yes" moves the same booking.
+- Cancel a booking when a customer says "I need to cancel." "Cancel & reply" removes only Chairside's event and confirms in the chat.
+- Handle late arrivals. "Running 15 min late" brings up the proposed start and whether it fits before the next event. The owner can shift the booking, offer the next opening if it clashes, or ask how late when the customer gives no time.
 
 ## Why it's safe
 
 - The shop server reads customer message text in memory. It never stores or logs the text or sends it to any third-party AI. A canary test checks logs, the SQLite database and its write-ahead log.
 - Customer booking records keep only IDs, first name, service, times and statuses. Calendar events contain the appointment details.
-- The owner approves every booking or offer. A customer's acceptance applies only to the active offer in that chat.
+- The owner chooses the action on the card. A customer's acceptance applies only to the active offer in that chat.
 - Chairside handles the shop's bookings one at a time and checks for overlaps after writing the event. If Telegram delivery is uncertain, the owner sees a notice to check the chat.
 - Customers in shop-bot mode can use `/forget`. Business-chat customers can ask the owner about deletion. Owners can use `/delete_my_data` privately with the bot. Calendar events and Telegram chat history have their own deletion controls. [Privacy and Telegram terms](docs/PRIVACY.md)
 
-## Status
+## What's verified where
 
-**Live services.** We verified Telegram Business reply rights, receipt of a customer DM, a reply from the owner's account in that thread, an inline button callback and marking a message as read. On Google Calendar we checked free/busy, inserted an event with a deterministic ID, recognized the duplicate as ours and deleted the test event. [Live checks](docs/SPIKES.md)
+The live run used real Telegram Business and Google Calendar with the Even simulator. It covered booking, offering an opening and accepting it with "yes," a slot taken while the owner was reading, pairing and reconnecting. [Live run](docs/evidence/live-smoke.md)
 
-**Even simulator.** With test adapters, we paired the glasses app, booked from a card and saw the receipt. When we blocked a slot before tapping, the customer's thread got no reply and the calendar got no new booking. The app also reconnected after a server restart. [Simulator run](docs/evidence/e2e-full.md)
+Moves, cancellations and late arrivals passed automated tests and a separate Even simulator run with test stand-ins for Telegram and Google Calendar. Those three flows still need a run with real accounts. [Simulator run](docs/evidence/e2e-full.md)
 
 ## Limits
 
