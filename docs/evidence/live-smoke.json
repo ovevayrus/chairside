@@ -1,0 +1,503 @@
+{
+  "startedAt": "2026-11-26T05:41:49.464Z",
+  "ok": true,
+  "env": {
+    "node": "v24.13.0",
+    "platform": "win32",
+    "telegramMode": "business",
+    "shopConfig": "shop.recording.json",
+    "timezone": "America/New_York",
+    "day": "2027-01-09",
+    "spokenDay": "Saturday 9 Jan",
+    "pauseS": 3
+  },
+  "checks": [
+    {
+      "ok": true,
+      "label": "paired from scratch with a code sent in Telegram"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1: the server holds the request behind the card"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1: the card comes from a declared test customer chat (SMOKE_CUSTOMER_IDS)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1: the card is from Alex (exact Telegram first name; the screenshots are public evidence)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1: Alex writes from a different account than the other customer"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1: the card carries a new message from this run"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1 parsed a haircut at 15:00 (got book, haircut, Sat 9 Jan 15:00)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1: the card did not change during the hold (version 1, pending)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1: the highlighted action is Book & reply at 15:00 (got book Sat 9 Jan 15:00)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1: the glasses still show this card with its first action selected"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1 tap answered ok (got ok)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1 reply sent: Telegram returned a message id"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1 booking recorded"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1 booked 15:00 (got Sat 9 Jan 15:00-15:45)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 1 event read back from Google Calendar"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2: the server holds the request behind the card"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2: the card comes from a declared test customer chat (SMOKE_CUSTOMER_IDS)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2: the card is from James (exact Telegram first name; the screenshots are public evidence)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2: James writes from a different account than the other customer"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2: the card carries a new message from this run"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2 parsed a skin fade at 15:00 (got book, skin_fade, Sat 9 Jan 15:00)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2: the card did not change during the hold (version 1, pending)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2: the highlighted action is an offer later that afternoon (got offer Sat 9 Jan 16:00)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2: the glasses still show this card with its first action selected"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2 offer tap answered ok (got ok)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2 offer sent: Telegram returned a message id"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2 James typed a reply that accepted the offer (its message id is recorded)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2 \"yes\" booked it and the confirmation went out (status ok, state sent)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2 confirmation sent: Telegram returned a message id"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2 booking recorded"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2 booked the offered time (got Sat 9 Jan 16:00-16:45)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2 event read back from Google Calendar"
+    },
+    {
+      "ok": true,
+      "label": "Moment 2 offer marked accepted (got accepted)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3: the server holds the request behind the card"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3: the card comes from a declared test customer chat (SMOKE_CUSTOMER_IDS)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3: the card is from Alex (exact Telegram first name; the screenshots are public evidence)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3: Alex writes from the same chat as before"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3: the card carries a new message from this run"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3 parsed a beard trim at 17:00 (got book, beard_trim, Sat 9 Jan 17:00)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3: the card did not change during the hold (version 1, pending)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3: the highlighted action is Book & reply at 17:00 (got book Sat 9 Jan 17:00)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3: the glasses still show this card with its first action selected"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3 tap answered slot_taken (got slot_taken)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3 the card now offers the next opening (got offer Sat 9 Jan 17:45)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3 Alex's thread did not change (operator count before 0, after 0)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3 sent no message (before 8, after 8)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3 wrote no event (before 2, after 2)"
+    },
+    {
+      "ok": true,
+      "label": "Moment 3 has no reply id and no booking row"
+    },
+    {
+      "ok": true,
+      "label": "the restart did not ask to pair again"
+    },
+    {
+      "ok": true,
+      "label": "post-restart: the server holds the request behind the card"
+    },
+    {
+      "ok": true,
+      "label": "post-restart: the card comes from a declared test customer chat (SMOKE_CUSTOMER_IDS)"
+    },
+    {
+      "ok": true,
+      "label": "post-restart: the card is from James (exact Telegram first name; the screenshots are public evidence)"
+    },
+    {
+      "ok": true,
+      "label": "post-restart: James writes from the same chat as before"
+    },
+    {
+      "ok": true,
+      "label": "post-restart: the card carries a new message from this run"
+    },
+    {
+      "ok": true,
+      "label": "a DM after the restart opened a card"
+    },
+    {
+      "ok": true,
+      "label": "only this run's requests and receipts appeared on the glasses (other cards: 0, other updates: 0)"
+    },
+    {
+      "ok": true,
+      "label": "today's calendar still holds demo events only, so the root screen named no real customer (non-demo: 0)"
+    }
+  ],
+  "shots": [
+    {
+      "file": "01-pairing.png",
+      "path": "docs/evidence/live-smoke-01-pairing.png",
+      "caption": "the pairing screen (single-use code, long expired)"
+    },
+    {
+      "file": "02-root-paired.png",
+      "path": "docs/evidence/live-smoke-02-root-paired.png",
+      "caption": "paired: the root screen"
+    },
+    {
+      "file": "03-m1-card.png",
+      "path": "docs/evidence/live-smoke-03-m1-card.png",
+      "caption": "Moment 1: the card, smart default highlighted"
+    },
+    {
+      "file": "04-m1-receipt.png",
+      "path": "docs/evidence/live-smoke-04-m1-receipt.png",
+      "caption": "Moment 1: the receipt after one tap"
+    },
+    {
+      "file": "05-m2-card.png",
+      "path": "docs/evidence/live-smoke-05-m2-card.png",
+      "caption": "Moment 2: 15:00 is taken; the card offers the next opening"
+    },
+    {
+      "file": "06-m2-offer-sent.png",
+      "path": "docs/evidence/live-smoke-06-m2-offer-sent.png",
+      "caption": "Moment 2: the offer went out"
+    },
+    {
+      "file": "07-m2-booked.png",
+      "path": "docs/evidence/live-smoke-07-m2-booked.png",
+      "caption": "Moment 2: the \"yes\" booked it; the glasses show the update"
+    },
+    {
+      "file": "08-m3-card.png",
+      "path": "docs/evidence/live-smoke-08-m3-card.png",
+      "caption": "Moment 3: the card shows 17:00 free"
+    },
+    {
+      "file": "09-m3-slot-taken.png",
+      "path": "docs/evidence/live-smoke-09-m3-slot-taken.png",
+      "caption": "Moment 3: nothing sent; the card says the slot was just taken and offers the next opening"
+    },
+    {
+      "file": "10-reconnect-status.png",
+      "path": "docs/evidence/live-smoke-10-reconnect-status.png",
+      "caption": "server stopped: the status screen"
+    },
+    {
+      "file": "11-reconnect-root.png",
+      "path": "docs/evidence/live-smoke-11-reconnect-root.png",
+      "caption": "server back: root again, no pairing"
+    },
+    {
+      "file": "12-reconnect-card.png",
+      "path": "docs/evidence/live-smoke-12-reconnect-card.png",
+      "caption": "a DM after the restart still opens a card"
+    }
+  ],
+  "timeline": [
+    {
+      "at": "2026-11-26T05:41:51.293Z",
+      "text": "clean start: removed 0 demo event(s), seeded 2"
+    },
+    {
+      "at": "2026-11-26T05:41:53.407Z",
+      "text": "server listening after 1.8 s"
+    },
+    {
+      "at": "2026-11-26T05:41:53.845Z",
+      "text": "launching the simulator with fresh storage (pairing from scratch)"
+    },
+    {
+      "at": "2026-11-26T05:41:54.943Z",
+      "text": "waiting for the owner to pair"
+    },
+    {
+      "at": "2026-11-26T05:42:15.057Z",
+      "text": "paired"
+    },
+    {
+      "at": "2026-11-26T05:42:15.061Z",
+      "text": "waiting for the Moment 1 DM"
+    },
+    {
+      "at": "2026-11-26T05:42:26.494Z",
+      "text": "Moment 1 card shown (request 3d02d92e-223d-4611-8afa-3de873771cb2)"
+    },
+    {
+      "at": "2026-11-26T05:42:29.754Z",
+      "text": "tap (request 3d02d92e-223d-4611-8afa-3de873771cb2)"
+    },
+    {
+      "at": "2026-11-26T05:42:33.011Z",
+      "text": "Moment 1 done"
+    },
+    {
+      "at": "2026-11-26T05:42:33.012Z",
+      "text": "waiting for the Moment 2 DM"
+    },
+    {
+      "at": "2026-11-26T05:43:00.604Z",
+      "text": "Moment 2 card shown (request d3b04073-fca6-4ded-bd2e-146856a89aae)"
+    },
+    {
+      "at": "2026-11-26T05:43:03.873Z",
+      "text": "tap (request d3b04073-fca6-4ded-bd2e-146856a89aae)"
+    },
+    {
+      "at": "2026-11-26T05:43:04.646Z",
+      "text": "waiting for the \"yes\""
+    },
+    {
+      "at": "2026-11-26T05:43:14.303Z",
+      "text": "offer accepted"
+    },
+    {
+      "at": "2026-11-26T05:43:16.131Z",
+      "text": "Moment 2 done"
+    },
+    {
+      "at": "2026-11-26T05:43:16.132Z",
+      "text": "waiting for the Moment 3 DM"
+    },
+    {
+      "at": "2026-11-26T05:43:32.600Z",
+      "text": "Moment 3 card shown (request 5c4727eb-b91f-48ad-bfc5-f0ddd74a1bbf)"
+    },
+    {
+      "at": "2026-11-26T05:43:33.246Z",
+      "text": "foreign block inserted at 2027-01-09 17:00-17:30"
+    },
+    {
+      "at": "2026-11-26T05:44:19.102Z",
+      "text": "tap (request 5c4727eb-b91f-48ad-bfc5-f0ddd74a1bbf)"
+    },
+    {
+      "at": "2026-11-26T05:44:30.030Z",
+      "text": "Moment 3 done"
+    },
+    {
+      "at": "2026-11-26T05:44:31.286Z",
+      "text": "server stopped"
+    },
+    {
+      "at": "2026-11-26T05:44:34.537Z",
+      "text": "server restarted"
+    },
+    {
+      "at": "2026-11-26T05:44:37.180Z",
+      "text": "waiting for the post-restart DM"
+    },
+    {
+      "at": "2026-11-26T05:45:30.366Z",
+      "text": "post-restart card shown (request 99ee4610-50dd-426a-8aa7-82958ed00de2)"
+    },
+    {
+      "at": "2026-11-26T05:45:30.609Z",
+      "text": "reconnect done"
+    }
+  ],
+  "clean": {
+    "removed": 0,
+    "seeded": [
+      {
+        "id": "1gt9svtj0jsb2372qbucjg412u",
+        "local": "2026-11-26 14:00-14:45"
+      },
+      {
+        "id": "p07cmhnlq9tlf293hgbv70o7t2",
+        "local": "2026-11-26 16:15-16:35"
+      }
+    ]
+  },
+  "pairing": {
+    "readyS": 0.84,
+    "launchToCodeS": 0.74,
+    "codeToPairedS": 20.15,
+    "pairedToLiveS": 0.01
+  },
+  "moment1": {
+    "requestId": "3d02d92e-223d-4611-8afa-3de873771cb2",
+    "dmMessageIds": [
+      325267
+    ],
+    "parsed": "book, haircut, Sat 9 Jan 15:00",
+    "telegramToCardS": 3.46,
+    "receivedToCardS": 2.8,
+    "status": "ok",
+    "actionId": "29f4c174-ae3a-40fb-a70d-4601cd5b7915",
+    "tapToServerS": 0.02,
+    "tapToReceiptS": 1.21,
+    "replyMessageId": 325268,
+    "tapToReplyS": 0.99,
+    "dmToReplyS": 7.74,
+    "eventId": "l0so8a6c37nll4njmbq1k5641o",
+    "eventLocal": "Sat 9 Jan 15:00-15:45",
+    "eventVerified": true
+  },
+  "moment2": {
+    "requestId": "d3b04073-fca6-4ded-bd2e-146856a89aae",
+    "dmMessageIds": [
+      325269
+    ],
+    "telegramToCardS": 3.58,
+    "offerId": "9ade8222-3a27-41cd-a67e-a70425bf862b",
+    "offerLocal": "Sat 9 Jan 16:00-16:45",
+    "offerMessageId": 325270,
+    "offerStatusAfterTap": "active",
+    "yesMessageIds": [
+      325271
+    ],
+    "yesToBookedS": 3.62,
+    "bookingMessageId": 325272,
+    "eventId": "784005rvmlla4fajs0oroo71o1",
+    "eventLocal": "Sat 9 Jan 16:00-16:45",
+    "eventVerified": true,
+    "offerStatus": "accepted"
+  },
+  "moment3": {
+    "requestId": "5c4727eb-b91f-48ad-bfc5-f0ddd74a1bbf",
+    "slotLocal": "Sat 9 Jan 17:00",
+    "blockId": "tm96htku57t3fsrprt5hac93iv",
+    "blockStartUtc": "2027-01-09T22:00:00.000Z",
+    "blockEndUtc": "2027-01-09T22:30:00.000Z",
+    "blockLocal": "2027-01-09 17:00-17:30",
+    "before": {
+      "thread": 0,
+      "sent": 8,
+      "events": 2
+    },
+    "status": "slot_taken",
+    "versionAfter": 2,
+    "nextLocal": "Sat 9 Jan 17:45",
+    "after": {
+      "sent": 8,
+      "events": 2,
+      "thread": 0
+    }
+  },
+  "reconnect": {
+    "stoppedAt": "2026-11-26T05:44:30.030Z",
+    "statusS": 2.3,
+    "restartedAt": "2026-11-26T05:44:32.639Z",
+    "listeningS": 1.9,
+    "backS": 4.25,
+    "links": [
+      "link=connecting",
+      "link=offline",
+      "link=polling"
+    ],
+    "noRepair": true,
+    "finalCard": true
+  },
+  "cleanup": "removed this run's 3 demo event(s) (the seeded appointments and the Moment 3 block); the Moment 1 and 2 bookings stay; the last DM stays as a waiting card",
+  "finishedAt": "2026-11-26T05:45:33.640Z"
+}

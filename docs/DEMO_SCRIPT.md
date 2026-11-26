@@ -29,15 +29,15 @@ At your pace this runs about 2:56 (373 words, pauses included), and the video mu
 
 **0:00–0:36**
 
-This is David, halfway through a haircut, with his hands full. Like a lot of barbers, he takes bookings in DMs. Usually that means putting the scissors down or making someone wait, and they might book elsewhere. With Chairside, though, David never has to touch his phone. He reads each request on his Even G2 glasses and answers with a press of his Even Realities R1 ring. In this demo, the Even simulator stands in for both.
+This is David, halfway through a haircut, with his hands full. Like a lot of barbers, he takes bookings in DMs. Usually that means putting the scissors down or making someone wait, and they might book elsewhere. With Chairside though, David never has to touch his phone. He reads each request on his Even G2 glasses and answers with a press of his R1 ring. In this demo, the Even simulator stands in for both.
 
 **0:36–1:16**
 
-Let's start with Alex. He texts David for a haircut on Saturday at three, in their usual Telegram chat. No app, no booking link. Seconds later it's on David's glasses, already checked against his calendar for the full forty-five minutes. David can swipe the ring for other options, but the best one's already highlighted. One press books it. **(press)** That one press wrote to two apps. The haircut is in his Google Calendar, and Alex has his confirmation, sent from David's own account through Telegram Business.
+Let's start with Alex. He texts David for a haircut on Saturday at three pm, in their usual Telegram chat. No app, no booking link. Seconds later it's on David's glasses, already checked against his calendar for the full forty-five minutes. David can swipe the ring for other options, but the best one's already highlighted. One press books it. **(press)** That one press wrote to two apps. The haircut is in his Google Calendar, and Alex has his confirmation, sent from David's own account through Telegram Business.
 
 **1:16–1:50**
 
-Now James wants a skin fade at three o'clock too. Alex finishes at quarter to four, and David leaves five minutes between clients, so the card suggests four, the next opening that fits. One press sends the offer. **(press)** James replies "yes" on his phone, and Chairside checks that four is still free before it books him and confirms. David sees "James accepted" on his glasses. This time, he doesn't touch a thing.
+Now James wants a skin fade at three pm too. Alex finishes at quarter to four, and David leaves five minutes between clients, so the card suggests four, the next opening that fits. One press sends the offer. **(press)** James replies "yes" on his phone, and Chairside checks that four is still free before it books him and confirms. David sees "James accepted" on his glasses. He doesn't touch his phone.
 
 **1:50–2:18**
 

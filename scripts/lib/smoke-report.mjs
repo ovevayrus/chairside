@@ -188,7 +188,7 @@ export function renderReport(r) {
     '',
     '| Count | Before the tap | After the tap |',
     '| --- | --- | --- |',
-    `| Messages below the customer's question in her thread (operator count from the screen; the Bot API cannot read chat history) | ${show(m3.before?.thread)} | ${show(m3.after?.thread)} |`,
+    `| Messages below the customer's question in the chat (operator count from the screen; the Bot API cannot read chat history) | ${show(m3.before?.thread)} | ${show(m3.after?.thread)} |`,
     `| Messages Chairside has sent in this customer's thread (server records) | ${show(m3.before?.sent)} | ${show(m3.after?.sent)} |`,
     `| Events on ${r.env?.day ?? 'the day'} in Google Calendar, excluding the block | ${show(m3.before?.events)} | ${show(m3.after?.events)} |`,
     '',

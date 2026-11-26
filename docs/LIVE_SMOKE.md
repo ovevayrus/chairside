@@ -80,5 +80,6 @@ npm run smoke:live -- --keep-demo         # keep the seeded events and the block
 
 - **Reply visible on the customer's screen.** The runner records when Telegram confirmed the reply (the Bot API's answer). The moment the reply appears in Alex's chat is measured afterwards from the screen recording.
 - **Two devices, one lost answer.** If two paired devices press the same card and one of them loses its HTTP answer, that device can show "Not confirmed" before the booking's receipt arrives. The demo uses one device.
+- **The Book button.** With `CALLBACKS_SUPPORTED=true`, David's offer also carries a Book button. A tap accepts the offer but leaves no typed message, so the runner stops at its "typed a reply" check. The recorded run set `CALLBACKS_SUPPORTED=false` in the shell (`.env` unchanged), so James could only accept by typing, as the narration says.
 - **The words of James's reply.** Chairside never keeps message text, so the runner can prove that a typed reply accepted the offer, not that it read exactly "yes" ("ok" also accepts). The screen recording shows the "yes".
 - **Hands off the simulator.** Scrolling a card's list is handled by the glasses themselves and tells the app nothing, so a stray swipe in the simulator during a hold could move the highlight before the runner's press. Don't touch the simulator during the run.
