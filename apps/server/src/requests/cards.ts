@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { CardSchema, type Card } from '@chairside/shared'
 import { DateTime } from 'luxon'
-import type { CalendarAdapter } from '../calendar/adapter.js'
+import { freeBusyExcluding, type CalendarAdapter } from '../calendar/adapter.js'
+import { bookingEvent, type BookingRow } from '../db/bookings.js'
 import type { ParseResult } from '../parse/parser.js'
 import type { ShopConfig } from '../shop/config.js'
 import { findOpenings, type Interval } from '../slots/engine.js'
@@ -51,45 +52,148 @@ function serviceFor(shop: ShopConfig, id: string | undefined | null) {
 }
 
 /** Query exactly the local dates searched by the engine, including both buffers. */
-export async function planProposals(
-  parsed: ParseResult & { requestedDayUtc?: string },
+async function availableOpenings(
   shop: ShopConfig,
   calendar: CalendarAdapter,
   now: Date,
-  blocked: Interval[] = [],
-): Promise<Proposal[]> {
-  const dismiss = proposal('not_now', 'Not now')
-  if (parsed.intent !== 'book') return [dismiss]
-  const service = serviceFor(shop, parsed.serviceId ?? shop.defaultServiceId)
-  if (!service) return [dismiss]
-  const requested = parsed.startUtc
+  durationMin: number,
+  requested: string | undefined,
+  blocked: Interval[],
+  booking?: BookingRow,
+) {
   const startDay = DateTime.fromMillis(
     Math.max(now.getTime(), requested ? Date.parse(requested) : now.getTime()),
     { zone: shop.timezone },
   ).startOf('day')
   const horizonDays = 7
-  const availability = await calendar
-    .freeBusy(
-      startDay.minus({ minutes: shop.bufferMin }).toUTC().toISO()!,
-      startDay
-        .plus({ days: horizonDays, minutes: shop.bufferMin })
-        .toUTC()
-        .toISO()!,
-    )
-    .catch(() => ({ ok: false as const }))
-  if (!availability.ok) return [proposal('calendar_error', 'Not now')]
-  const { requestedFits, openings } = findOpenings({
+  const from = startDay.minus({ minutes: shop.bufferMin }).toUTC().toISO()!
+  const to = startDay
+    .plus({ days: horizonDays, minutes: shop.bufferMin })
+    .toUTC()
+    .toISO()!
+  const availability = await (
+    booking
+      ? freeBusyExcluding(calendar, from, to, bookingEvent(booking))
+      : calendar.freeBusy(from, to)
+  ).catch(() => ({ ok: false as const }))
+  if (!availability.ok) return
+  const input = {
     hours: shop.hours,
     tz: shop.timezone,
-    durationMin: service.durationMin,
+    durationMin,
     bufferMin: shop.bufferMin,
     gridMin: shop.gridMin,
-    busy: [...availability.busy, ...blocked],
+    busy: availability.busy,
     from: now.toISOString(),
     requested,
     horizonDays,
     count: 2,
+  }
+  if (!booking)
+    return findOpenings({ ...input, busy: [...input.busy, ...blocked] })
+  const openings = findOpenings(input)
+  // A press can lose a race before the competing event becomes visible in the
+  // next calendar read. Use the synthetic block only when that read missed it.
+  return blocked.length && openings.requestedFits
+    ? findOpenings({ ...input, busy: [...input.busy, ...blocked] })
+    : openings
+}
+
+export async function planMoveProposals(
+  booking: BookingRow,
+  requested: string | undefined,
+  shop: ShopConfig,
+  calendar: CalendarAdapter,
+  now: Date,
+  blocked: Interval[] = [],
+  requestedDayUtc = booking.slot_start_utc,
+): Promise<Proposal[]> {
+  const dismiss = proposal('not_now', 'Not now')
+  const bookedStart = Date.parse(booking.slot_start_utc)
+  const durationMs = Date.parse(booking.slot_end_utc) - bookedStart
+  if (!(durationMs > 0)) return [dismiss]
+  if (!requested)
+    return [
+      proposal('ask_time', 'Ask what time suits', {
+        startUtc: requestedDayUtc,
+        endUtc: requestedDayUtc,
+      }),
+      dismiss,
+    ]
+  const availability = await availableOpenings(
+    shop,
+    calendar,
+    now,
+    durationMs / 60_000,
+    requested,
+    blocked,
+    booking,
+  )
+  if (!availability) return [proposal('calendar_error', 'Not now')]
+  const requestedMs = Date.parse(requested)
+  const slot = {
+    startUtc: requested,
+    endUtc: new Date(requestedMs + durationMs).toISOString(),
+  }
+  if (availability.requestedFits && requestedMs !== bookedStart)
+    return [proposal('move', 'Move & reply', slot), dismiss]
+  const next = availability.openings.find(({ startUtc }) => {
+    const start = Date.parse(startUtc)
+    return start > requestedMs && start !== bookedStart
   })
+  return [
+    next
+      ? proposal(
+          'move_offer',
+          `Offer ${localSlot(next.startUtc, shop, 'ccc d LLL HH:mm')}`,
+          next,
+        )
+      : proposal('ask_time', 'Ask for another time', slot),
+    dismiss,
+  ]
+}
+
+export async function planProposals(
+  parsed: ParseResult,
+  shop: ShopConfig,
+  calendar: CalendarAdapter,
+  now: Date,
+  blocked: Interval[] = [],
+  booking?: BookingRow,
+): Promise<Proposal[]> {
+  if (parsed.intent === 'move' && booking)
+    return planMoveProposals(
+      booking,
+      parsed.startUtc,
+      shop,
+      calendar,
+      now,
+      blocked,
+      parsed.requestedDayUtc,
+    )
+  const dismiss = proposal('not_now', 'Not now')
+  if (parsed.intent === 'cancel' && booking)
+    return [
+      proposal('cancel', 'Cancel & reply', {
+        startUtc: booking.slot_start_utc,
+        endUtc: booking.slot_end_utc,
+      }),
+      dismiss,
+    ]
+  if (parsed.intent !== 'book') return [dismiss]
+  const service = serviceFor(shop, parsed.serviceId ?? shop.defaultServiceId)
+  if (!service) return [dismiss]
+  const requested = parsed.startUtc
+  const availability = await availableOpenings(
+    shop,
+    calendar,
+    now,
+    service.durationMin,
+    requested,
+    blocked,
+  )
+  if (!availability) return [proposal('calendar_error', 'Not now')]
+  const { requestedFits, openings } = availability
   const offer = (slot: Interval, prefix = 'Offer') =>
     proposal(
       'offer',
@@ -156,11 +260,14 @@ export function buildCard(
   replyBlock?: ReplyBlock,
   index = 1,
   total = 1,
+  booking?: BookingRow,
 ): Card {
   const service = serviceFor(shop, request.service_id)
   const name = displayText(request.customer_first_name, 24) || 'Customer'
   const lines = [
-    service && request.intent === 'book' ? `${name} · ${service.name}` : name,
+    (service && request.intent === 'book') || booking
+      ? `${name} · ${service?.name ?? 'Appointment'}`
+      : name,
   ]
   let header = 'NEW REQUEST'
   let actions = proposals.map(({ id, label }) => ({
@@ -173,13 +280,25 @@ export function buildCard(
   const retry = proposals.find((p) => p.kind.startsWith('retry_'))
   const retryBooking =
     retry?.kind === 'retry_book' || retry?.kind === 'retry_offer_accepted'
+  const changeResult =
+    retry?.kind === 'retry_move' || retry?.kind === 'retry_move_offer_accepted'
+      ? 'Moved'
+      : retry?.kind === 'retry_cancel'
+        ? 'Cancelled'
+        : undefined
   if (request.status === 'reply_unknown') {
     const booked = proposals.some((p) => p.kind === 'unknown_book')
-    header = booked ? 'BOOKED' : 'NEEDS YOU'
+    if (booked) header = request.intent === 'move' ? 'MOVED' : 'BOOKED'
+    else
+      header =
+        request.intent === 'cancel' && booking?.status === 'cancelled'
+          ? 'CANCELLED'
+          : 'NEEDS YOU'
     lines.push('Reply status unknown · check Telegram')
   } else if (replyBlock) {
     header = "CAN'T REPLY"
-    if (retryBooking && request.status === 'reply_not_sent')
+    if (changeResult) lines.push(`${changeResult} · reply not sent`)
+    else if (retryBooking && request.status === 'reply_not_sent')
       lines.push('Booked · reply not sent')
     lines.push(
       replyBlock === 'window'
@@ -191,11 +310,13 @@ export function buildCard(
     header = 'NEEDS YOU'
     if (retry.slot_start_utc)
       lines.push(localSlot(retry.slot_start_utc, shop, 'ccc d LLL · HH:mm'))
-    lines.push(
-      request.status === 'reply_not_sent' && retryBooking
-        ? 'Booked, reply not sent · Send now?'
-        : 'Reply not sent',
-    )
+    if (changeResult) lines.push(`${changeResult} · reply not sent`)
+    else
+      lines.push(
+        request.status === 'reply_not_sent' && retryBooking
+          ? 'Booked, reply not sent · Send now?'
+          : 'Reply not sent',
+      )
   } else if (
     request.status === 'slot_taken_accepted' &&
     request.requested_start_utc
@@ -207,6 +328,8 @@ export function buildCard(
     lines.push('but it was just taken')
   } else if (request.intent === 'cancel') {
     header = 'WANTS TO CANCEL'
+    if (booking)
+      lines.push(localSlot(booking.slot_start_utc, shop, 'ccc d LLL · HH:mm'))
   } else if (request.intent === 'unknown') {
     header = 'NEEDS YOU'
   } else if (
@@ -215,6 +338,32 @@ export function buildCard(
   ) {
     header = 'NEEDS YOU'
     lines.push('Calendar unavailable')
+  } else if (request.intent === 'move' && booking) {
+    header = 'WANTS TO MOVE'
+    const oldStart = booking.slot_start_utc
+    const newStart = request.requested_start_utc
+    const oldWhen = localSlot(oldStart, shop, 'ccc d LLL HH:mm')
+    if (newStart) {
+      const sameDay =
+        localSlot(oldStart, shop, 'yyyy-MM-dd') ===
+        localSlot(newStart, shop, 'yyyy-MM-dd')
+      const availability = proposals.some((p) => p.kind === 'move')
+        ? '● free'
+        : '○ taken'
+      if (Date.parse(oldStart) === Date.parse(newStart))
+        lines.push(`${oldWhen} · Already booked`)
+      else if (sameDay)
+        lines.push(
+          `${oldWhen} ▶ ${localSlot(newStart, shop, 'HH:mm')} · ${availability}`,
+        )
+      else
+        lines.push(
+          oldWhen,
+          `▶ ${localSlot(newStart, shop, 'ccc d LLL HH:mm')} · ${availability}`,
+        )
+    } else {
+      lines.push(oldWhen)
+    }
   } else if (request.requested_start_utc && service) {
     const date = localSlot(
       request.requested_start_utc,

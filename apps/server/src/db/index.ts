@@ -8,6 +8,10 @@ const migrations = [
     version: 2,
     file: new URL('../../src/db/002-request-messages.sql', import.meta.url),
   },
+  {
+    version: 3,
+    file: new URL('../../src/db/003-booking-changes.sql', import.meta.url),
+  },
 ]
 
 export function runMigrations(db: DatabaseSync): void {
@@ -43,9 +47,13 @@ export function runMigrations(db: DatabaseSync): void {
  * fakes must never share a file with a live shop: processed update ids are
  * global, so a fake update could make Chairside skip a real one.
  */
-export function assertSingleMode(db: DatabaseSync, mode: 'live' | 'test'): void {
+export function assertSingleMode(
+  db: DatabaseSync,
+  mode: 'live' | 'test',
+): void {
   const other = mode === 'live' ? 'test' : 'live'
-  if (!db.prepare('SELECT 1 AS hit FROM shops WHERE mode = ?').get(other)) return
+  if (!db.prepare('SELECT 1 AS hit FROM shops WHERE mode = ?').get(other))
+    return
   throw new Error(
     mode === 'test'
       ? 'This database holds a live shop: give TEST MODE its own DATABASE_PATH'

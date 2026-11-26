@@ -20,6 +20,7 @@ export type OfferStatus =
 export interface OfferRow {
   id: string
   request_id: string
+  booking_id: string | null
   chat_id: number
   slot_start_utc: string
   slot_end_utc: string
@@ -47,12 +48,18 @@ export function latestOffer(
 
 export function insertOffer(
   store: RequestStore,
-  offer: { id: string; requestId: string; chatId: number; slot: Interval },
+  offer: {
+    id: string
+    requestId: string
+    chatId: number
+    slot: Interval
+    bookingId?: string
+  },
 ): void {
   store.db
     .prepare(
-      `INSERT INTO offers (id,request_id,chat_id,slot_start_utc,slot_end_utc,status,expires_at)
-      VALUES (?,?,?,?,?,'sending',?)`,
+      `INSERT INTO offers (id,request_id,chat_id,slot_start_utc,slot_end_utc,status,expires_at,booking_id)
+      VALUES (?,?,?,?,?,'sending',?,?)`,
     )
     .run(
       offer.id,
@@ -61,6 +68,7 @@ export function insertOffer(
       offer.slot.startUtc,
       offer.slot.endUtc,
       new Date(store.now().getTime() + OFFER_TTL_MS).toISOString(),
+      offer.bookingId ?? null,
     )
 }
 

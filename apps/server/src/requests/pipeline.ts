@@ -7,6 +7,7 @@ import {
   openOffer,
 } from '../actions/offers.js'
 import type { CalendarAdapter } from '../calendar/adapter.js'
+import { upcomingBookings, type BookingRow } from '../db/bookings.js'
 import { endActiveOffers, setOfferStatus, type OfferRow } from '../db/offers.js'
 import type { RequestRow, RequestStore } from '../db/requests.js'
 import type { LiveHub } from '../live/hub.js'
@@ -62,13 +63,16 @@ export function createRequestPipeline(options: PipelineOptions) {
   async function persist(
     info: BatchInfo,
     ids: number[],
-    parsed: ParseResult & { requestedDayUtc?: string },
+    parsed: ParseResult,
+    booking?: BookingRow,
   ) {
     const proposals = await planProposals(
       parsed,
       store.shop,
       calendar,
       store.now(),
+      [],
+      booking,
     )
     if (closed) return
     const row = store.save({
@@ -76,6 +80,7 @@ export function createRequestPipeline(options: PipelineOptions) {
       chatId: info.chatId,
       firstName: info.firstName,
       parsed,
+      bookingId: booking?.id,
       lastCustomerMsgAt: info.lastCustomerMsgAt,
       connectionId: info.connectionId,
       messageIds: ids,
@@ -121,7 +126,8 @@ export function createRequestPipeline(options: PipelineOptions) {
           setOfferStatus(store, offer.id, 'answered')
       }
       const now = store.now()
-      const parsed = parseRequest(text, now, store.shop)
+      const bookings = upcomingBookings(store, info.chatId)
+      const parsed = parseRequest(text, now, store.shop, bookings)
       const requestedDayUtc =
         parsed.intent === 'book' &&
         parsed.needs.includes('time') &&
@@ -132,8 +138,9 @@ export function createRequestPipeline(options: PipelineOptions) {
               store.shop,
               true,
             ).startUtc
-          : undefined
-      return persist(info, ids, { ...parsed, requestedDayUtc })
+          : parsed.requestedDayUtc
+      const booking = bookings.find(({ id }) => id === parsed.bookingId)
+      return persist(info, ids, { ...parsed, requestedDayUtc }, booking)
     },
   )
 

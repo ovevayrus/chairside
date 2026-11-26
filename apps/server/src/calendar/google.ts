@@ -6,6 +6,7 @@ import {
   type calendar_v3,
 } from '@googleapis/calendar'
 import { JWT } from 'google-auth-library'
+import { DateTime } from 'luxon'
 import {
   isOurs,
   type CalEvent,
@@ -156,11 +157,11 @@ export class GoogleCalendarAdapter implements CalendarAdapter {
     return toCalEvent(raw)
   }
 
-  async deleteEvent(id: string): Promise<void> {
+  async deleteEvent(id: string, etag?: string): Promise<void> {
     try {
       await this.calendar.events.delete(
         { calendarId: this.calendarId, eventId: id },
-        this.opts(),
+        { ...this.opts(), ...(etag && { headers: { 'If-Match': etag } }) },
       )
     } catch (error) {
       const status = statusOf(error)
@@ -191,8 +192,9 @@ export class GoogleCalendarAdapter implements CalendarAdapter {
         )
       for (const item of res.data.items ?? []) {
         if (item.status === 'cancelled') continue
-        const event = toCalEvent(item)
-        if (event) out.push(event)
+        const event = toCalEvent(item, res.data.timeZone ?? undefined)
+        if (!event) throw new Error('Calendar returned an unusable event')
+        out.push(event)
       }
       pageToken = res.data.nextPageToken ?? undefined
     } while (pageToken)
@@ -207,21 +209,35 @@ export class GoogleCalendarAdapter implements CalendarAdapter {
       )
       return res.data
     } catch (error) {
-      if (statusOf(error) === 404) return null
+      const status = statusOf(error)
+      if (status === 404 || status === 410) return null
       throw error
     }
   }
 }
 
-function toCalEvent(raw: calendar_v3.Schema$Event): CalEvent | null {
-  const start = raw.start?.dateTime ?? raw.start?.date
-  const end = raw.end?.dateTime ?? raw.end?.date
+function toCalEvent(
+  raw: calendar_v3.Schema$Event,
+  calendarZone = 'UTC',
+): CalEvent | null {
+  function toUtc(value: calendar_v3.Schema$EventDateTime | undefined) {
+    const text = value?.dateTime ?? value?.date
+    return text
+      ? DateTime.fromISO(text, { zone: value?.timeZone ?? calendarZone })
+          .toUTC()
+          .toISO()
+      : null
+  }
+  const start = toUtc(raw.start)
+  const end = toUtc(raw.end)
   if (!raw.id || !start || !end) return null
   return {
     id: raw.id,
-    startUtc: new Date(start).toISOString(),
-    endUtc: new Date(end).toISOString(),
+    startUtc: start,
+    endUtc: end,
     summary: raw.summary ?? '',
     privateProps: { ...(raw.extendedProperties?.private ?? {}) },
+    ...(raw.transparency === 'transparent' && { transparent: true }),
+    ...(raw.etag && { etag: raw.etag }),
   }
 }

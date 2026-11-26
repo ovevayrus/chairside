@@ -5,6 +5,7 @@ import type { ParseResult } from '../parse/parser.js'
 import { buildCard, proposal, type Proposal } from '../requests/cards.js'
 import type { ShopConfig } from '../shop/config.js'
 import type { BusinessRights, ConnectionEvent } from '../telegram/events.js'
+import { bookingFor } from './bookings.js'
 
 export interface RequestRow {
   id: string
@@ -13,6 +14,7 @@ export interface RequestRow {
   customer_first_name: string
   intent: string
   service_id: string | null
+  booking_id: string | null
   requested_start_utc: string | null
   status: string
   version: number
@@ -39,6 +41,7 @@ interface RequestInput {
   connectionId: string
   messageIds: number[]
   proposals: Proposal[]
+  bookingId?: string
 }
 
 export class RequestStore {
@@ -87,7 +90,7 @@ export class RequestStore {
       for (const { id } of interrupted) {
         this.db
           .prepare(
-            "UPDATE requests SET status='pending',intent='unknown',requested_start_utc=NULL,version=version+1 WHERE id=?",
+            "UPDATE requests SET status='pending',intent='unknown',requested_start_utc=NULL,booking_id=NULL,version=version+1 WHERE id=?",
           )
           .run(String(id))
         this.insertProposals(this.get(String(id))!, [
@@ -214,10 +217,11 @@ export class RequestStore {
       this.db
         .prepare(
           `INSERT INTO requests (id,shop_id,chat_id,customer_first_name,intent,service_id,
-        requested_start_utc,status,version,last_customer_msg_at,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?,'pending',1,?,?,?) ON CONFLICT(id) DO UPDATE SET
+        requested_start_utc,booking_id,status,version,last_customer_msg_at,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,'pending',1,?,?,?) ON CONFLICT(id) DO UPDATE SET
         customer_first_name=excluded.customer_first_name,intent=excluded.intent,service_id=excluded.service_id,
-        requested_start_utc=excluded.requested_start_utc,status='pending',version=requests.version+1,
+        requested_start_utc=excluded.requested_start_utc,booking_id=excluded.booking_id,
+        status='pending',version=requests.version+1,
         last_customer_msg_at=max(requests.last_customer_msg_at,excluded.last_customer_msg_at),updated_at=excluded.updated_at`,
         )
         .run(
@@ -228,6 +232,7 @@ export class RequestStore {
           parsed.intent,
           parsed.serviceId ?? null,
           parsed.startUtc ?? null,
+          input.bookingId ?? null,
           lastCustomerMsgAt,
           ts,
           ts,
@@ -338,6 +343,7 @@ export class RequestStore {
       this.replyBlock(row),
       Math.max(1, pending.findIndex((r) => r.id === row.id) + 1),
       Math.max(1, pending.length),
+      bookingFor(this, row.booking_id),
     )
   }
 }

@@ -39,15 +39,12 @@ function seedRequest(
     `INSERT INTO actions (id, request_id, version, action_id, idempotency_key, state, created_at, updated_at)
     VALUES (?, ?, 1, 'book', ?, 'sent', ?, ?)`,
   ).run(id, id, id, now, now)
-  db.prepare(`INSERT INTO bookings VALUES (?, ?, ?, ?, ?, ?, 'sent', ?)`).run(
-    id,
-    shopId,
-    id,
-    'calendar-event',
-    now,
-    later,
-    now,
-  )
+  db.prepare(
+    `
+    INSERT INTO bookings (id, shop_id, request_id, calendar_event_id, slot_start_utc, slot_end_utc, reply_status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'sent', ?)
+  `,
+  ).run(id, shopId, id, 'calendar-event', now, later, now)
   db.prepare(
     `INSERT INTO proposals (id, request_id, version, kind, label)
     VALUES (?, ?, 1, 'book', 'Book')`,

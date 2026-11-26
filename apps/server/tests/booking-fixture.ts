@@ -158,7 +158,7 @@ export async function bookingFixture(
       )
     },
     bookings() {
-      return db.prepare('SELECT * FROM bookings').all()
+      return db.prepare('SELECT * FROM bookings ORDER BY rowid').all()
     },
     events() {
       return calendar.listEvents('2026-12-01T00:00:00Z', '2027-01-01T00:00:00Z')

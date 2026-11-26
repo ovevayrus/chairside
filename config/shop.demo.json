@@ -48,6 +48,8 @@
     "offer": "Hi {name}! I can do {service} on {day} {date} at {time}. Does that work?",
     "ask_day": "Hi {name}! Would {day} {date} work for your {service}, or is another day better?",
     "ask_time": "Hi {name}! What time suits you for your {service} on {day} {date}?",
-    "offer_accepted": "See you on {day} {date} at {time}, {name}! Your {service} is booked."
+    "offer_accepted": "See you on {day} {date} at {time}, {name}! Your {service} is booked.",
+    "moved": "Done! Your {service} is now on {day} {date} at {time}, {name}.",
+    "cancelled": "No problem, {name}. Your {service} on {day} {date} at {time} is cancelled."
   }
 }

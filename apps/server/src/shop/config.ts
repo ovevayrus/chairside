@@ -46,6 +46,12 @@ export const shopConfigSchema = z
       ask_day: template,
       ask_time: template,
       offer_accepted: template,
+      moved: template.default(
+        'Done! Your {service} is now on {day} {date} at {time}, {name}.',
+      ),
+      cancelled: template.default(
+        'No problem, {name}. Your {service} on {day} {date} at {time} is cancelled.',
+      ),
     }),
   })
   .refine(

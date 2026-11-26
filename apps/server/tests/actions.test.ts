@@ -306,3 +306,227 @@ describe('owner actions', () => {
     },
   )
 })
+
+describe('changing a confirmed booking', () => {
+  const moveText = 'Can we move it to 3:30pm?'
+  const moveSlot = {
+    startUtc: '2026-12-05T11:30:00.000Z',
+    endUtc: '2026-12-05T12:15:00.000Z',
+  }
+  const movedReply = textSha256(
+    'Done! Your Skin fade is now on Saturday 5 Dec at 15:30, Anna.',
+  )
+  const cancelledReply = textSha256(
+    'No problem, Anna. Your Skin fade on Saturday 5 Dec at 15:00 is cancelled.',
+  )
+
+  async function confirmedBooking(
+    options?: Parameters<typeof bookingFixture>[0],
+  ) {
+    const f = await bookingFixture(options)
+    const outcome = await f.runtime.execute(tap(await f.cardFor()))
+    expect(outcome.status).toBe('ok')
+    return f
+  }
+
+  it('moves an overlapping slot before removing the old event and replays both keys', async () => {
+    const f = await confirmedBooking()
+    const [old] = await f.events()
+    const input = tap(await f.cardFor(moveText), 'Move & reply')
+    const remove = f.calendar.deleteEvent.bind(f.calendar)
+    const deleteEvent = vi
+      .spyOn(f.calendar, 'deleteEvent')
+      .mockImplementation(async (id, etag) => {
+        expect(id).toBe(old!.id)
+        expect(await f.events()).toEqual([
+          old,
+          expect.objectContaining(moveSlot),
+        ])
+        expect(f.bookings()).toEqual([
+          expect.objectContaining({ status: 'moved' }),
+          expect.objectContaining({ status: 'active' }),
+        ])
+        expect(f.sends()).toHaveLength(1)
+        await remove(id, etag)
+      })
+    const result = await f.postAction(input)
+    expect(result).toEqual({
+      http: 200,
+      body: { status: 'ok', receipt: '● Moved to Sat 5 Dec 15:30' },
+    })
+    for (const idempotencyKey of [input.idempotencyKey, randomUUID()]) {
+      expect(await f.postAction({ ...input, idempotencyKey })).toEqual({
+        ...result,
+        body: { ...result.body, idempotencyKey: input.idempotencyKey },
+      })
+    }
+    expect(deleteEvent).toHaveBeenCalledOnce()
+    const remaining = await f.events()
+    expect(remaining).toEqual([
+      expect.objectContaining({
+        ...moveSlot,
+        privateProps: {
+          chairsideBookingId: expect.any(String),
+          requestId: input.requestId,
+        },
+      }),
+    ])
+    expect(f.bookings()).toEqual([
+      expect.objectContaining({ status: 'moved', calendar_event_id: old!.id }),
+      expect.objectContaining({
+        status: 'active',
+        calendar_event_id: remaining[0]!.id,
+        reply_status: 'sent',
+      }),
+    ])
+    expect(f.sends().slice(1)).toEqual([
+      expect.objectContaining({
+        chatId: customerId,
+        connectionId,
+        textSha256: movedReply,
+      }),
+    ])
+  })
+
+  it('keeps the old booking and offers another opening when the move is taken at the press', async () => {
+    const f = await confirmedBooking()
+    const [old] = await f.events()
+    const move = tap(await f.cardFor(moveText), 'Move & reply')
+    const other = f.calendar.addForeignEvent({
+      ...moveSlot,
+      endUtc: '2026-12-05T11:40:00.000Z',
+    })
+    const insert = vi.spyOn(f.calendar, 'insertEvent')
+    const result = await f.runtime.execute(move)
+    expect(result.status).toBe('slot_taken')
+    expect(result.card).toMatchObject({
+      requestId: move.requestId,
+      header: 'WANTS TO MOVE',
+      lines: ['Anna · Skin fade', 'Sat 5 Dec 15:00 ▶ 15:30 · ○ taken'],
+    })
+    expect(result.card!.version).toBeGreaterThan(move.version)
+    expect(result.card!.actions[0]?.label).toBe('Offer Sat 5 Dec 15:45')
+    expect(insert).not.toHaveBeenCalled()
+    expect(await f.events()).toEqual([old, other])
+    expect(f.bookings()).toEqual([
+      expect.objectContaining({ status: 'active' }),
+    ])
+    expect(f.sends()).toHaveLength(1)
+  })
+
+  it('finishes the calendar move on restart with one confirmation pending owner approval', async () => {
+    let interrupted = false
+    const f = await confirmedBooking({
+      persistent: true,
+      checkpoint(point) {
+        if (interrupted && point === 'after_insert')
+          throw new Error('power lost')
+      },
+    })
+    const move = tap(await f.cardFor(moveText), 'Move & reply')
+    interrupted = true
+    await expect(f.runtime.execute(move)).rejects.toThrow('power lost')
+    expect(await f.events()).toHaveLength(2)
+    expect(f.sends()).toHaveLength(1)
+    await f.restart()
+    expect(await f.events()).toEqual([expect.objectContaining(moveSlot)])
+    expect(f.bookings()).toEqual([
+      expect.objectContaining({ status: 'moved' }),
+      expect.objectContaining({ status: 'active' }),
+    ])
+    await f.runtime.execute(move)
+    await f.runtime.execute({ ...move, idempotencyKey: randomUUID() })
+    expect(f.sends()).toHaveLength(1)
+    const recovery = (await f.runtime.hub.snapshot(tenant)).cards.find(
+      (card) => card.requestId === move.requestId,
+    )!
+    const send = tap(recovery, 'Send now')
+    expect((await f.runtime.execute(send)).status).toBe('ok')
+    await f.runtime.execute(send)
+    await f.restart()
+    expect(await f.events()).toEqual([expect.objectContaining(moveSlot)])
+    expect(
+      f
+        .sends()
+        .slice(1)
+        .map((call) => call.textSha256),
+    ).toEqual([movedReply])
+  })
+
+  it('reports a failed old slot cleanup and retries it on restart', async () => {
+    const f = await confirmedBooking({ persistent: true })
+    vi.spyOn(f.calendar, 'deleteEvent').mockRejectedValueOnce(
+      new Error('offline'),
+    )
+    const result = await f.runtime.execute(
+      tap(await f.cardFor(moveText), 'Move & reply'),
+    )
+    expect(result.status).toBe('ok')
+    expect(result.receipt).toMatch(/old slot still on calendar/i)
+    expect(await f.events()).toHaveLength(2)
+    expect(f.bookings()).toEqual([
+      expect.objectContaining({ status: 'moved' }),
+      expect.objectContaining({ status: 'active', reply_status: 'sent' }),
+    ])
+    await f.restart()
+    expect(await f.events()).toEqual([expect.objectContaining(moveSlot)])
+    expect(
+      f
+        .sends()
+        .slice(1)
+        .map((call) => call.textSha256),
+    ).toEqual([movedReply])
+  })
+
+  it.each(['present', 'already deleted'])(
+    'cancels and replies once with the event %s',
+    async (state) => {
+      const f = await confirmedBooking()
+      const [old] = await f.events()
+      const cancel = tap(
+        await f.cardFor('Sorry, I need to cancel'),
+        'Cancel & reply',
+      )
+      if (state === 'already deleted') await f.calendar.deleteEvent(old!.id)
+      const deleteEvent = vi.spyOn(f.calendar, 'deleteEvent')
+      const outcome = await f.postAction(cancel)
+      expect(outcome).toEqual({
+        http: 200,
+        body: { status: 'ok', receipt: '● Cancelled Sat 5 Dec 15:00' },
+      })
+      for (const idempotencyKey of [cancel.idempotencyKey, randomUUID()]) {
+        expect(await f.postAction({ ...cancel, idempotencyKey })).toEqual({
+          ...outcome,
+          body: { ...outcome.body, idempotencyKey: cancel.idempotencyKey },
+        })
+      }
+      expect(deleteEvent).toHaveBeenCalledTimes(state === 'present' ? 1 : 0)
+      expect(await f.events()).toEqual([])
+      expect(f.bookings()).toEqual([
+        expect.objectContaining({ status: 'cancelled' }),
+      ])
+      expect(f.sends().slice(1)).toEqual([
+        expect.objectContaining({
+          chatId: customerId,
+          connectionId,
+          textSha256: cancelledReply,
+        }),
+      ])
+    },
+  )
+
+  it.each(['marker', 'interval'])(
+    'does not delete an event whose %s changed',
+    async (changed) => {
+      const f = await confirmedBooking()
+      const [old] = await f.events()
+      const cancel = tap(await f.cardFor('Please cancel'), 'Cancel & reply')
+      const repurposed = f.calendar.addForeignEvent({
+        ...old!,
+        ...(changed === 'marker' ? { privateProps: {} } : moveSlot),
+      })
+      await f.runtime.execute(cancel)
+      expect(await f.events()).toEqual([repurposed])
+    },
+  )
+})

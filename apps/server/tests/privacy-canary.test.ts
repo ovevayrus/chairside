@@ -16,7 +16,7 @@ function capture(stream: NodeJS.WritableStream) {
   return () => Buffer.concat(chunks).toString('utf8')
 }
 
-it('keeps the booking canary out of both log streams, SQLite, WAL and SHM on success and failure', async () => {
+it('keeps booking, move and cancellation text out of logs, SQLite, WAL and SHM', async () => {
   const stdout = capture(process.stdout)
   const stderr = capture(process.stderr)
   // Vitest replaces console; exercise the server's actual stderr destination.
@@ -26,6 +26,9 @@ it('keeps the booking canary out of both log streams, SQLite, WAL and SHM on suc
   })
 
   const canary = 'CANARY-7319 skin fade sat 3pm'
+  const moveCanary = 'SPINDLE-CANARY'
+  const cancelCanary = 'PIVOT-CANARY'
+  const canaries = ['CANARY-7319', moveCanary, cancelCanary]
   let failAfterInsert = false
   const f = await bookingFixture({
     persistent: true,
@@ -36,6 +39,12 @@ it('keeps the booking canary out of both log streams, SQLite, WAL and SHM on suc
   const card = await f.cardFor(canary)
   expect((await f.runtime.execute(tap(card))).status).toBe('ok')
   expect(f.bookings()).toHaveLength(1)
+  const move = await f.cardFor(`can I come at 4 instead ${moveCanary}`)
+  expect((await f.runtime.execute(tap(move, 'Move & reply'))).status).toBe('ok')
+  const cancel = await f.cardFor(`Sorry, I need to cancel ${cancelCanary}`)
+  expect((await f.runtime.execute(tap(cancel, 'Cancel & reply'))).status).toBe(
+    'ok',
+  )
 
   // A failure carrying the customer's words propagates through the real HTTP error handler.
   f.advance(7 * 24 * 60 * 60_000)
@@ -67,7 +76,7 @@ it('keeps the booking canary out of both log streams, SQLite, WAL and SHM on suc
     expect(stderr()).toContain(`handler failed for update ${updateId}`),
   )
   for (const output of [stdout(), stderr()]) {
-    expect(output).not.toContain('CANARY-7319')
+    for (const marker of canaries) expect(output).not.toContain(marker)
   }
 
   // Copy committed pages into the main file without truncating the WAL.
@@ -77,6 +86,7 @@ it('keeps the booking canary out of both log streams, SQLite, WAL and SHM on suc
     const bytes = readFileSync(path + suffix)
     expect(bytes.length).toBeGreaterThan(0)
     if (suffix !== '-shm') expect(bytes.includes(card.requestId)).toBe(true)
-    expect(bytes.includes('CANARY-7319'), path + suffix).toBe(false)
+    for (const marker of canaries)
+      expect(bytes.includes(marker), path + suffix).toBe(false)
   }
 })

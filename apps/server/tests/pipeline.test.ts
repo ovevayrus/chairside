@@ -19,7 +19,8 @@ import {
   type ChatMessageEvent,
   type ConnectionEvent,
 } from '../src/telegram/events.js'
-import { FakeTelegramAdapter } from '../src/telegram/fake.js'
+import { FakeTelegramAdapter, textSha256 } from '../src/telegram/fake.js'
+import { bookingFixture, customerId, tap } from './booking-fixture.js'
 
 const owner = 801234567
 function fixture(name: string) {
@@ -214,5 +215,162 @@ describe('inbound pipeline', () => {
     await delay(30)
     expect(store.pending()).toEqual([])
     expect(store.connection().id).toBe(connection.connectionId)
+  })
+})
+
+describe('booking changes through the inbound pipeline', () => {
+  it('shows the soonest booking by default and selects a booking on the named day', async () => {
+    const f = await bookingFixture()
+    for (const text of [
+      'Beard trim Monday 7 Dec at 2pm',
+      'Skin fade Saturday 5 Dec at 3pm',
+    ]) {
+      expect((await f.runtime.execute(tap(await f.cardFor(text)))).status).toBe(
+        'ok',
+      )
+    }
+
+    const soonest = await f.cardFor('can I come at 4 instead')
+    expect(soonest).toMatchObject({
+      header: 'WANTS TO MOVE',
+      lines: ['Anna · Skin fade', 'Sat 5 Dec 15:00 ▶ 16:00 · ● free'],
+    })
+    const monday = await f.cardFor('Could we move Monday 7 Dec to 5pm?')
+    expect(monday).toMatchObject({
+      header: 'WANTS TO MOVE',
+      lines: ['Anna · Beard trim', 'Mon 7 Dec 14:00 ▶ 17:00 · ● free'],
+    })
+    expect(monday.requestId).toBe(soonest.requestId)
+    expect(f.sends()).toHaveLength(2)
+    expect((await f.runtime.execute(tap(monday, 'Move & reply'))).status).toBe(
+      'ok',
+    )
+    expect(await f.events()).toContainEqual(
+      expect.objectContaining({
+        startUtc: '2026-12-07T13:00:00.000Z',
+        endUtc: '2026-12-07T13:20:00.000Z',
+      }),
+    )
+    const cancel = await f.cardFor('Sorry, I need to cancel Monday 7 Dec')
+    expect(cancel).toMatchObject({
+      header: 'WANTS TO CANCEL',
+      lines: ['Anna · Beard trim', 'Mon 7 Dec · 17:00'],
+    })
+    expect(cancel.actions.map((a) => a.label)).toEqual([
+      'Cancel & reply',
+      'Not now',
+    ])
+    expect(f.sends()).toHaveLength(3)
+    expect(await f.events()).toHaveLength(2)
+    expect(
+      (await f.runtime.execute(tap(cancel, 'Cancel & reply'))).status,
+    ).toBe('ok')
+    expect(await f.events()).toEqual([
+      expect.objectContaining({ startUtc: '2026-12-05T11:00:00.000Z' }),
+    ])
+  })
+
+  it('keeps ordinary bookings separate from a prior booking in the same chat', async () => {
+    const f = await bookingFixture()
+    expect((await f.runtime.execute(tap(await f.cardFor()))).status).toBe('ok')
+    const ordinary = await f.cardFor(
+      'Can I get a haircut Saturday 23 Jan at 4pm?',
+    )
+    expect(ordinary).toMatchObject({
+      header: 'NEW REQUEST',
+      lines: ['Anna · Haircut', 'Sat 23 Jan · 16:00 · ● free (45 min)'],
+    })
+    const anotherChat = await f.cardFor(
+      'can I come at 4 instead',
+      customerId + 1,
+      'Nina',
+    )
+    expect(anotherChat.header).toBe('NEW REQUEST')
+    const cancel = await f.cardFor(
+      'Sorry, I need to cancel',
+      customerId + 1,
+      'Nina',
+    )
+    expect(cancel).toMatchObject({ header: 'WANTS TO CANCEL', lines: ['Nina'] })
+    expect(cancel.actions.map((a) => a.label)).toEqual(['Not now'])
+    expect(f.sends()).toHaveLength(1)
+  })
+
+  it.each([
+    ['Could I come 3-ish hours later?', 'Saturday 5 Dec'],
+    ['Could I come 3-ish hours later on Friday 4 Dec?', 'Friday 4 Dec'],
+  ])(
+    'routes service changes to the owner and asks for a time for %j',
+    async (text, day) => {
+      const f = await bookingFixture()
+      const booked = await f.cardFor('Haircut Saturday 5 Dec at 3pm')
+      expect((await f.runtime.execute(tap(booked))).status).toBe('ok')
+
+      const serviceChange = await f.cardFor(
+        'Can I switch to a skin fade instead?',
+      )
+      expect(serviceChange.header).toBe('NEEDS YOU')
+      expect(serviceChange.actions.map((action) => action.label)).toEqual([
+        'Not now',
+      ])
+
+      const unclear = await f.cardFor(text)
+      expect(unclear.header).toBe('WANTS TO MOVE')
+      expect(unclear.actions.map((action) => action.label)).toEqual([
+        'Ask what time suits',
+        'Not now',
+      ])
+      expect(f.sends()).toHaveLength(1)
+      const events = await f.events()
+      const response = await f.runtime.execute(
+        tap(unclear, 'Ask what time suits'),
+      )
+      expect(response.status).toBe('ok')
+      expect(f.sends()).toHaveLength(2)
+      expect(f.sends()[1]?.textSha256).toBe(
+        textSha256(`Hi Anna! What time suits you for your Haircut on ${day}?`),
+      )
+      expect(await f.events()).toEqual(events)
+    },
+  )
+
+  it.each(['unconfirmed', 'past', 'cancelled'])(
+    'skips a booking that is %s',
+    async (state) => {
+      const f = await bookingFixture()
+      const first = await f.cardFor()
+      if (state === 'unconfirmed')
+        f.telegram.failNext({ code: 400 }, 'sendText')
+      expect((await f.runtime.execute(tap(first))).status).toBe(
+        state === 'unconfirmed' ? 'send_failed' : 'ok',
+      )
+      if (state === 'past') f.advance(3 * 24 * 60 * 60_000)
+      if (state === 'cancelled') {
+        const cancel = await f.cardFor('Please cancel my appointment')
+        expect(
+          (await f.runtime.execute(tap(cancel, 'Cancel & reply'))).status,
+        ).toBe('ok')
+      }
+      expect((await f.cardFor('can I come at 4 instead')).header).toBe(
+        'NEW REQUEST',
+      )
+      const cancel = await f.cardFor('Please cancel my appointment')
+      expect(cancel.actions.map((a) => a.label)).toEqual(['Not now'])
+    },
+  )
+
+  it.each([
+    'Can we move it to 11am?',
+    'Can we move it to 7:30pm?',
+    'Can we move it to 3:07pm?',
+    'Can I reschedule to Sunday 2pm?',
+  ])('never offers a move to an unavailable time in %j', async (text) => {
+    const f = await bookingFixture()
+    const booking = await f.cardFor('Skin fade Thursday 3 Dec at 3pm')
+    expect((await f.runtime.execute(tap(booking))).status).toBe('ok')
+    const card = await f.cardFor(text)
+    expect(card.header).toBe('WANTS TO MOVE')
+    expect(card.actions.map((a) => a.label)).not.toContain('Move & reply')
+    expect(f.sends()).toHaveLength(1)
   })
 })

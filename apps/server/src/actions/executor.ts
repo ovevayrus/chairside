@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import type { ActionRequest, ActionResponse } from '@chairside/shared'
 import { proposal } from '../requests/cards.js'
-import { reserve } from './booking.js'
+import { moveBooking, reserve } from './booking.js'
+import { bookingUnavailable, cancelBooking, currentBooking } from './changes.js'
 import {
   finish,
   publish,
@@ -103,7 +104,11 @@ export class ActionExecutor {
         }),
         changed: false,
       }
-    if (['not_now','calendar_error','unknown_book','unknown_reply'].includes(p.kind)) {
+    if (
+      ['not_now', 'calendar_error', 'unknown_book', 'unknown_reply'].includes(
+        p.kind,
+      )
+    ) {
       return {
         response: store.transaction(() => {
           store.close(row.id, 'dismissed')
@@ -121,17 +126,33 @@ export class ActionExecutor {
         }),
         changed: true,
       }
-    if (p.kind === 'book') {
+    if (
+      ['move_offer', 'retry_move_offer'].includes(p.kind) &&
+      !currentBooking(ctx, row)
+    )
+      return { response: bookingUnavailable(ctx, a, row), changed: true }
+    if (p.kind === 'move') {
+      const response = await moveBooking(ctx, a, row, p)
+      if (response) return { response, changed: true }
+    } else if (p.kind === 'cancel') {
+      const response = await cancelBooking(ctx, a, row)
+      if (response) return { response, changed: true }
+    } else if (p.kind === 'book') {
       const response = await reserve(ctx, a, row, p)
       if (response) return { response, changed: true }
     } else if (
       ![
         'offer',
+        'move_offer',
         'ask_day',
         'ask_time',
         'retry_book',
         'retry_offer',
         'retry_offer_accepted',
+        'retry_move',
+        'retry_move_offer_accepted',
+        'retry_move_offer',
+        'retry_cancel',
         'retry_ask_day',
         'retry_ask_time',
       ].includes(p.kind)

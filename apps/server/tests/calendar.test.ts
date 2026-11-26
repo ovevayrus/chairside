@@ -219,6 +219,24 @@ describe('GoogleCalendarAdapter', () => {
     expect(await a.getEvent('evt')).toBeNull()
     await expect(a.deleteEvent('evt')).resolves.toBeUndefined()
   })
+
+  it('uses the observed event ETag and fails deletion if the event changed', async () => {
+    const observed = '"revision-1"'
+    let ifMatch: string | null = null
+    server.use(
+      http.get(`${API}/calendars/:cal/events/:id`, () =>
+        HttpResponse.json(eventBody({ etag: observed })),
+      ),
+      http.delete(`${API}/calendars/:cal/events/:id`, ({ request }) => {
+        ifMatch = request.headers.get('if-match')
+        return HttpResponse.json({ error: { code: 412 } }, { status: 412 })
+      }),
+    )
+    const calendar = make()
+    const previous = await calendar.getEvent('evt')
+    await expect(calendar.deleteEvent('evt', previous?.etag)).rejects.toThrow()
+    expect(ifMatch).toBe(observed)
+  })
 })
 
 describe('FakeCalendar', () => {

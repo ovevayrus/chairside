@@ -2,6 +2,9 @@ import { en, type ParsedResult } from 'chrono-node'
 import { DateTime } from 'luxon'
 import type { ShopConfig } from '../shop/config.js'
 
+const specificDayThisWeek =
+  /\bthis\s+week(?:\s*,\s*|\s+)(?:on\s+)?(?=(?:mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs?(?:day)?)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b)/gi
+
 function calendarDay(result: ParsedResult, now: DateTime): DateTime {
   const { start } = result
   const weekday = start.get('weekday')
@@ -12,7 +15,10 @@ function calendarDay(result: ParsedResult, now: DateTime): DateTime {
     !start.isCertain('day') &&
     !/\b(next|last|past)\b/i.test(result.text)
   ) {
-    return now.startOf('day').plus({ days: (weekday - now.weekday + 7) % 7 })
+    const days = (weekday || 7) - now.weekday
+    return now.startOf('day').plus({
+      days: /\bthis\b/i.test(result.text) ? days : (days + 7) % 7,
+    })
   }
   const month = start.get('month') ?? now.month
   const day = start.get('day') ?? now.day
@@ -60,7 +66,10 @@ export function parseSchedule(
   now: DateTime,
   shop: ShopConfig,
   bookingContext: boolean,
+  bookedDay?: DateTime,
 ) {
+  // Chrono can swallow a following weekday into "this week" and lose the date.
+  text = text.replace(specificDayThisWeek, 'this ')
   // The GB grammar reads numeric dates as day/month. The reference offset
   // is for now; Luxon applies the shop's offset on the actual requested day.
   const results = en.GB.parse(
@@ -68,12 +77,20 @@ export function parseSchedule(
     { instant: now.toJSDate(), timezone: now.offset },
     { forwardDate: true },
   )
-  const dateResult = results.find(
+  const isRelative = ({ start }: ParsedResult) =>
+    start.tags().has('result/relativeDate')
+  // Duration and period results are anchored to now, even if Chrono marks
+  // their date and time as certain. A move resolves those phrases separately.
+  const namedResults = bookedDay
+    ? results.filter((result) => !isRelative(result))
+    : results
+  const dateResult = namedResults.find(
     ({ start }) => start.isCertain('day') || start.isCertain('weekday'),
   )
   const day = dateResult && calendarDay(dateResult, now)
-  const hours = shop.hours[(day ?? now).weekday]
-  const timeResult = results.find(({ start }) => start.isCertain('hour'))
+  const localDay = day ?? bookedDay ?? now
+  const hours = shop.hours[localDay.weekday]
+  const timeResult = namedResults.find(({ start }) => start.isCertain('hour'))
   let hour =
     timeResult?.start.get('hour') ??
     readLooseHour(text, results, !!day || bookingContext)
@@ -93,14 +110,15 @@ export function parseSchedule(
   let start =
     hour === undefined
       ? undefined
-      : (day ?? now).set({ hour, minute, second: 0, millisecond: 0 })
-  if (start && !day) {
+      : localDay.set({ hour, minute, second: 0, millisecond: 0 })
+  if (start && !day && !bookedDay) {
     const clock = start.toFormat('HH:mm')
     if (!hours || start <= now || clock < hours.open || clock >= hours.close)
       start = undefined
   }
   if (
     start &&
+    !bookedDay &&
     dateResult?.start.isCertain('weekday') &&
     !dateResult.start.isCertain('day') &&
     !/\b(this|next|last|past)\b/i.test(dateResult.text) &&
@@ -109,6 +127,8 @@ export function parseSchedule(
     start = start.plus({ days: 7 })
   }
   return {
+    explicitDay: day?.toISODate() ?? undefined,
+    hasRelative: results.some(isRelative),
     hasDate: !!day || !!start,
     hasTime: hour !== undefined,
     startUtc: start?.toUTC().toISO() ?? undefined,

@@ -22,6 +22,7 @@ export class FakeCalendar implements CalendarAdapter {
   readonly failures: FakeCalendarFailures = {}
   private readonly events = new Map<string, CalEvent>()
   private readonly deleted = new Set<string>()
+  private revision = 0
 
   async freeBusy(
     rangeStartUtc: string,
@@ -35,10 +36,9 @@ export class FakeCalendar implements CalendarAdapter {
     }
     return {
       ok: true,
-      busy: (await this.listEvents(rangeStartUtc, rangeEndUtc)).map((e) => ({
-        startUtc: e.startUtc,
-        endUtc: e.endUtc,
-      })),
+      busy: (await this.listEvents(rangeStartUtc, rangeEndUtc))
+        .filter((event) => !event.transparent)
+        .map(({ startUtc, endUtc }) => ({ startUtc, endUtc })),
     }
   }
 
@@ -58,6 +58,7 @@ export class FakeCalendar implements CalendarAdapter {
       endUtc: iso(input.endUtc),
       summary: input.summary,
       privateProps: { ...input.privateProps },
+      etag: String(++this.revision),
     }
     this.events.set(event.id, event)
     return { status: 'created', event: { ...event } }
@@ -68,7 +69,10 @@ export class FakeCalendar implements CalendarAdapter {
     return event ? { ...event } : null
   }
 
-  async deleteEvent(id: string): Promise<void> {
+  async deleteEvent(id: string, etag?: string): Promise<void> {
+    const event = this.events.get(id)
+    if (event && etag && event.etag !== etag)
+      throw new Error('Fake event changed before deletion')
     if (this.events.delete(id)) this.deleted.add(id)
   }
 
@@ -94,6 +98,8 @@ export class FakeCalendar implements CalendarAdapter {
       endUtc: iso(event.endUtc),
       summary: event.summary ?? 'Busy',
       privateProps: event.privateProps ?? {},
+      etag: String(++this.revision),
+      ...(event.transparent && { transparent: true }),
     }
     this.events.set(full.id, full)
     return full

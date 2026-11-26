@@ -1,10 +1,16 @@
 import { randomUUID } from 'node:crypto'
 import type { ActionResponse } from '@chairside/shared'
+import { bookingFor } from '../db/bookings.js'
 import { latestOffer, setOfferStatus, type OfferRow } from '../db/offers.js'
 import type { RequestRow } from '../db/requests.js'
-import { planProposals, proposal, type Proposal } from '../requests/cards.js'
+import {
+  planMoveProposals,
+  planProposals,
+  proposal,
+  type Proposal,
+} from '../requests/cards.js'
 import type { CallbackEvent } from '../telegram/events.js'
-import { reserve } from './booking.js'
+import { moveBooking, reserve } from './booking.js'
 import {
   finish,
   replaceCard,
@@ -103,8 +109,7 @@ export interface Acceptance {
 }
 
 /**
- * Books an accepted offer through the executor's guarantees and confirms it
- * with the `offer_accepted` template. The action row keyed `offer:<offerId>`
+ * Applies an accepted offer through the executor's guarantees. The action row keyed `offer:<offerId>`
  * turns every later acceptance of the same offer into a replay.
  */
 export async function acceptOffer(
@@ -127,6 +132,7 @@ export async function acceptOffer(
   const request = store.get(offer.request_id)
   if (offer.status !== 'active' || !request) return undefined
   const slot = { startUtc: offer.slot_start_utc, endUtc: offer.slot_end_utc }
+  const moving = offer.booking_id !== null
   const { action, row, p } = store.transaction(() => {
     setOfferStatus(store, offer.id, 'accepted')
     if (reply.dateIso && reply.messageIds.length)
@@ -138,11 +144,15 @@ export async function acceptOffer(
       )
     // The accepted slot is now what this customer asked for.
     store.db
-      .prepare('UPDATE requests SET requested_start_utc=? WHERE id=?')
-      .run(slot.startUtc, request.id)
+      .prepare(
+        'UPDATE requests SET requested_start_utc=?,booking_id=? WHERE id=?',
+      )
+      .run(slot.startUtc, offer.booking_id, request.id)
     store.close(request.id, 'executing')
     const row = store.get(request.id)!
-    const p = proposal('offer_accepted', 'Book', slot)
+    const p = moving
+      ? proposal('move_offer_accepted', 'Move', slot)
+      : proposal('offer_accepted', 'Book', slot)
     store.insertProposals(row, [p])
     const id = randomUUID()
     const now = store.now().toISOString()
@@ -176,7 +186,9 @@ export async function acceptOffer(
         }),
       ),
     )
-  const failed = await reserve(ctx, action, row, p)
+  const failed = moving
+    ? await moveBooking(ctx, action, row, p)
+    : await reserve(ctx, action, row, p)
   return ran(failed ?? (await sendReply(ctx, action, row, p)))
 }
 
@@ -191,18 +203,27 @@ export async function reopenAcceptance(
   p: Proposal,
 ): Promise<void> {
   const { store } = ctx
-  const proposals = await planProposals(
-    {
-      intent: 'book',
-      serviceId: row.service_id ?? store.shop.defaultServiceId,
-      startUtc: p.slot_start_utc ?? undefined,
-      confidence: 1,
-      needs: [],
-    },
-    store.shop,
-    ctx.calendar,
-    store.now(),
-  )
+  const booking = bookingFor(store, row.booking_id)
+  const proposals = booking
+    ? await planMoveProposals(
+        booking,
+        p.slot_start_utc ?? undefined,
+        store.shop,
+        ctx.calendar,
+        store.now(),
+      )
+    : await planProposals(
+        {
+          intent: 'book',
+          serviceId: row.service_id ?? store.shop.defaultServiceId,
+          startUtc: p.slot_start_utc ?? undefined,
+          confidence: 1,
+          needs: [],
+        },
+        store.shop,
+        ctx.calendar,
+        store.now(),
+      )
   store.transaction(() => {
     const card = replaceCard(ctx, row, 'pending', proposals)
     finish(

@@ -1,6 +1,7 @@
 import type { ActionResponse, Card } from '@chairside/shared'
 import { DateTime } from 'luxon'
-import { sameInterval } from '../calendar/adapter.js'
+import { matchesBooking, sameInterval } from '../calendar/adapter.js'
+import { bookingEvent, bookingFor } from '../db/bookings.js'
 import {
   activateOffer,
   endActiveOffers,
@@ -26,6 +27,13 @@ function replyKind(p: Proposal) {
     case 'ask_day':
     case 'ask_time':
       return kind
+    case 'move':
+    case 'move_offer_accepted':
+      return 'moved'
+    case 'cancel':
+      return 'cancelled'
+    case 'move_offer':
+      return 'offer'
     default:
       throw new Error('Invalid reply proposal')
   }
@@ -33,7 +41,26 @@ function replyKind(p: Proposal) {
 
 function isConfirmation(p: Proposal) {
   const kind = replyKind(p)
-  return kind === 'book' || kind === 'offer_accepted'
+  return kind === 'book' || kind === 'offer_accepted' || kind === 'moved'
+}
+
+function appointmentResult(p: Proposal) {
+  const kind = replyKind(p)
+  if (kind === 'moved') return 'Moved'
+  if (kind === 'cancelled') return 'Cancelled'
+  if (isConfirmation(p)) return 'Booked'
+}
+
+function withMoveCleanup(
+  ctx: ActionContext,
+  row: RequestRow,
+  p: Proposal,
+  receipt: string,
+): string {
+  return replyKind(p) === 'moved' &&
+    bookingFor(ctx.store, row.booking_id)?.cleanup_pending
+    ? `${receipt} · old slot still on calendar`
+    : receipt
 }
 
 /** The slot an offer reply puts on the table (offers.ts accepts it later). */
@@ -53,7 +80,7 @@ function updateBookingReply(
     ctx.store.db
       .prepare(
         `UPDATE bookings SET reply_status=?
-      WHERE shop_id=? AND request_id=? AND slot_start_utc=?`,
+      WHERE shop_id=? AND request_id=? AND slot_start_utc=? AND status='active'`,
       )
       .run(status, row.shop_id, row.id, p.slot_start_utc)
   }
@@ -74,7 +101,7 @@ export function recoveryCard(
     row,
     label === 'Retry send' ? 'send_failed' : 'reply_not_sent',
     [
-      proposal(`retry_${replyKind(p)}`, label, slot),
+      proposal(`retry_${p.kind.replace(/^retry_/, '')}`, label, slot),
       proposal('not_now', 'Not now'),
     ],
   )
@@ -92,15 +119,21 @@ export function unknownReply(
     // The customer may never have seen this offer, so a "yes" can't accept it.
     if (offeredSlot(p)) setOfferStatus(ctx.store, action.id, 'unknown')
     const booked = isConfirmation(p)
+    const result = appointmentResult(p)
     const card = replaceCard(ctx, row, 'reply_unknown', [
       proposal(booked ? 'unknown_book' : 'unknown_reply', 'Not now'),
     ])
     return finish(ctx, action, {
       status: 'reply_unknown',
       card,
-      receipt: booked
-        ? 'Booked · reply status unknown · check Telegram'
-        : 'Reply status unknown · check Telegram',
+      receipt: withMoveCleanup(
+        ctx,
+        row,
+        p,
+        result
+          ? `${result} · reply status unknown · check Telegram`
+          : 'Reply status unknown · check Telegram',
+      ),
     })
   })
 }
@@ -117,7 +150,7 @@ async function confirmExistingBooking(
   const booking = ctx.store.db
     .prepare(
       `SELECT id,calendar_event_id FROM bookings
-    WHERE shop_id=? AND request_id=? AND slot_start_utc=? AND slot_end_utc=?`,
+    WHERE shop_id=? AND request_id=? AND slot_start_utc=? AND slot_end_utc=? AND status='active'`,
     )
     .get(row.shop_id, row.id, startUtc, endUtc)
   if (!booking) return false
@@ -131,15 +164,24 @@ async function confirmExistingBooking(
     )
       return false
     const events = await ctx.calendar.listEvents(startUtc, endUtc)
+    const previous =
+      replyKind(p) === 'moved'
+        ? bookingFor(ctx.store, row.booking_id)
+        : undefined
+    const ownership = previous && bookingEvent(previous)
     const overlapping = events.filter(
       (other) =>
+        !other.transparent &&
+        !(ownership && matchesBooking(other, ownership)) &&
         Date.parse(other.startUtc) < Date.parse(endUtc) &&
         Date.parse(other.endUtc) > Date.parse(startUtc),
     )
-    return overlapping.length === 1 &&
+    return (
+      overlapping.length === 1 &&
       overlapping[0]!.id === event.id &&
       overlapping[0]!.privateProps.chairsideBookingId === booking.id &&
-      sameInterval(overlapping[0]!, {startUtc,endUtc})
+      sameInterval(overlapping[0]!, { startUtc, endUtc })
+    )
   } catch {
     return false
   }
@@ -176,6 +218,10 @@ function sentReceipt(ctx: ActionContext, row: RequestRow, p: Proposal): string {
       return `● Booked ${when}`
     case 'offer_accepted':
       return `● ${displayText(row.customer_first_name, 24) || 'Customer'} accepted · Booked ${when}`
+    case 'moved':
+      return withMoveCleanup(ctx, row, p, `● Moved to ${when}`)
+    case 'cancelled':
+      return `● Cancelled ${when}`
     case 'offer':
       return `● Offered ${when}`
     case 'ask_day':
@@ -207,12 +253,17 @@ export async function sendReply(
   }
   if (store.replyBlock(row)) {
     return store.transaction(() => {
-      const booked = isConfirmation(p)
+      const result = appointmentResult(p)
       updateBookingReply(ctx, row, p, 'reply_not_sent')
       return finish(ctx, action, {
         status: 'window_closed',
-        card: booked ? recoveryCard(ctx, row, p, 'Send now') : store.card(row),
-        receipt: booked ? 'Booked · reply not sent' : 'Reply not sent',
+        card: result ? recoveryCard(ctx, row, p, 'Send now') : store.card(row),
+        receipt: withMoveCleanup(
+          ctx,
+          row,
+          p,
+          result ? `${result} · reply not sent` : 'Reply not sent',
+        ),
       })
     })
   }
@@ -223,6 +274,7 @@ export async function sendReply(
     timeoutMs: DEFAULT_TIMEOUT_MS,
   }
   const offer = offeredSlot(p)
+  const moveOffer = p.kind.replace(/^retry_/, '') === 'move_offer'
   store.transaction(() => {
     // Any newer message from the shop ends the chat's open offer: a later
     // "yes" could answer that message instead.
@@ -233,6 +285,7 @@ export async function sendReply(
         requestId: row.id,
         chatId: row.chat_id,
         slot: offer,
+        bookingId: moveOffer ? (row.booking_id ?? undefined) : undefined,
       })
     store.db
       .prepare(
@@ -250,7 +303,7 @@ export async function sendReply(
             row.chat_id,
             text,
             {
-              text: `Book ${slotTime(ctx, p).toFormat('HH:mm')}`,
+              text: `${moveOffer ? 'Move to' : 'Book'} ${slotTime(ctx, p).toFormat('HH:mm')}`,
               callbackData: `offer:${action.id}`,
             },
             opts,
@@ -266,12 +319,18 @@ export async function sendReply(
       return store.transaction(() => {
         if (offer) setOfferStatus(store, action.id, 'failed')
         updateBookingReply(ctx, row, p, 'send_failed')
+        const result = appointmentResult(p)
         return finish(ctx, action, {
           status: 'send_failed',
           card: recoveryCard(ctx, row, p, 'Retry send'),
-          receipt: isConfirmation(p)
-            ? 'Booked · Telegram reply failed'
-            : 'Telegram reply failed',
+          receipt: withMoveCleanup(
+            ctx,
+            row,
+            p,
+            result
+              ? `${result} · Telegram reply failed`
+              : 'Telegram reply failed',
+          ),
         })
       })
     }

@@ -1,7 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { DatabaseSync } from 'node:sqlite'
+import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { assertSingleMode, openDatabase } from '../src/db/index.js'
 
@@ -58,14 +58,14 @@ it('opens a WAL database with every section 4.2 table and column', () => {
     devices: 'id shop_id token_hash created_at last_seen_at',
     pair_codes: 'code device_nonce expires_at shop_id consumed_at',
     requests:
-      'id shop_id chat_id customer_first_name intent service_id requested_start_utc status version last_customer_msg_at created_at updated_at',
+      'id shop_id chat_id customer_first_name intent service_id requested_start_utc status version last_customer_msg_at created_at updated_at booking_id',
     proposals: 'id request_id version kind slot_start_utc slot_end_utc label',
     offers:
-      'id request_id chat_id slot_start_utc slot_end_utc offer_message_id status expires_at',
+      'id request_id chat_id slot_start_utc slot_end_utc offer_message_id status expires_at booking_id',
     actions:
       'id request_id version action_id idempotency_key state planned_event_id telegram_message_id result_json created_at updated_at',
     bookings:
-      'id shop_id request_id calendar_event_id slot_start_utc slot_end_utc reply_status created_at',
+      'id shop_id request_id calendar_event_id slot_start_utc slot_end_utc reply_status created_at status service_id replaced_booking_id cleanup_pending pending_action_id',
     processed_updates: 'update_id received_at',
     consents: 'id shop_id kind granted_at revoked_at',
     schema_migrations: 'version applied_at',
@@ -120,6 +120,40 @@ it('preserves migration 1 and existing data when reopened', () => {
   ).toEqual({
     received_at: now,
   })
+})
+
+it('migrates an existing booking to active with its original service and reply state', () => {
+  db.close()
+  const legacyPath = join(directory, 'legacy.sqlite')
+  db = new DatabaseSync(legacyPath)
+  for (const file of ['schema.sql', '002-request-messages.sql']) {
+    db.exec(readFileSync(new URL(`../src/db/${file}`, import.meta.url), 'utf8'))
+  }
+  db.exec(`
+    CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL) STRICT;
+    INSERT INTO schema_migrations VALUES (1, '${now}'), (2, '${now}');
+  `)
+  insertRequest()
+  db.prepare("UPDATE requests SET service_id='skin_fade'").run()
+  db.prepare(
+    `
+    INSERT INTO bookings (id, shop_id, request_id, calendar_event_id, slot_start_utc, slot_end_utc, reply_status, created_at)
+    VALUES ('legacy-booking', 'shop-1', 'request-1', 'legacy-event', ?, ?, 'sent', ?)
+  `,
+  ).run(now, new Date(Date.parse(now) + 45 * 60_000).toISOString(), now)
+  db.close()
+  db = openDatabase(legacyPath)
+
+  expect(db.prepare('SELECT * FROM bookings').get()).toMatchObject({
+    id: 'legacy-booking',
+    calendar_event_id: 'legacy-event',
+    status: 'active',
+    service_id: 'skin_fade',
+    reply_status: 'sent',
+    cleanup_pending: 0,
+    replaced_booking_id: null,
+  })
+  expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
 })
 
 it('rejects duplicate idempotency keys and duplicate request/version/action tuples', () => {

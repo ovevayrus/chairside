@@ -1,6 +1,7 @@
 // The full simulator run (US-011): pairing, root feedback, the contextual
 // menu (pause and resume cards), a DM that becomes a card, one tap that books
-// it (exactly 1 fake send + 1 fake event), the receipt and root,
+// it (exactly 1 fake send + 1 fake event), the receipt and root, then a move
+// and a cancellation of the same booking (US-018 and US-019),
 // the stale-slot case (a calendar block lands while the card is on screen:
 // slot_taken card, 0 new sends, 0 new events), a backend restart (status
 // screen, then resync), and the root double-tap exit request. Every step
@@ -24,6 +25,9 @@ import { linesSince, stop, waitFor } from './processes.mjs'
 const evidenceDir = join(root, 'docs', 'evidence')
 const MIN_LIT = 500
 const CARD_TIMEOUT_MS = 12_000
+// Keep the original screenshot numbers used in docs/QA.md.
+const BOOKING_CHANGE_SCREENSHOT_OFFSET = 14
+const BOOKED_CUSTOMER = 'Alex'
 
 const shop = JSON.parse(
   readFileSync(join(root, 'config', 'shop.demo.json'), 'utf8'),
@@ -95,6 +99,7 @@ class Scenario {
     this.simulator = simulator
     this.backend = backend
     this.steps = []
+    this.bookingChangeSteps = []
     this.checks = []
     this.frame = undefined
     this.sim = undefined
@@ -117,14 +122,20 @@ class Scenario {
   }
 
   /** Settled screenshot (after the display left the previous frame), saved as evidence. */
-  async shot(name, detail, { minLit = MIN_LIT, changed = true } = {}) {
-    const number = String(this.steps.length + 1).padStart(2, '0')
+  async shot(
+    name,
+    detail,
+    { minLit = MIN_LIT, changed = true, bookingChange = false } = {},
+  ) {
+    const steps = bookingChange ? this.bookingChangeSteps : this.steps
+    const offset = bookingChange ? BOOKING_CHANGE_SCREENSHOT_OFFSET : 0
+    const number = String(offset + steps.length + 1).padStart(2, '0')
     const frame = await settledFrame(this.sim, changed ? this.frame : undefined)
     const file = `e2e-full-${number}-${name}.png`
     const path = save(file, frame)
     const lit = litPixels(frame)
     this.frame = frame
-    this.steps.push({ number, name, detail, path, lit })
+    steps.push({ number, name, detail, path, lit })
     step(`${number} ${name}: ${detail} (${lit} lit px)`)
     if (minLit)
       this.check(
@@ -142,6 +153,65 @@ class Scenario {
     this.check(
       readyMs <= 10_000,
       `[chairside] ready within 10 s (${readyMs} ms)`,
+    )
+  }
+
+  async approveBookingChange({
+    name,
+    chatId,
+    text,
+    cardDetail,
+    receiptDetail,
+  }) {
+    let mark = this.mark()
+    await this.backend.dev('POST', '/dev/inject', {
+      firstName: BOOKED_CUSTOMER,
+      chatId,
+      text,
+    })
+    const shown = await this.log(
+      '[chairside] card shown req=<id> v=1',
+      /\[chairside\] card shown req=(\S+) v=1\b/,
+      mark,
+      CARD_TIMEOUT_MS,
+    )
+    const requestId = /req=(\S+)/.exec(shown.message)[1]
+    await this.shot(`${name}-card`, cardDetail, { bookingChange: true })
+
+    mark = this.mark()
+    await this.sim.input('click')
+    const result = await this.log(
+      '[chairside] action result',
+      new RegExp(`\\[chairside\\] action result req=${requestId} status=\\w+`),
+      mark,
+      15_000,
+    )
+    this.check(
+      /status=ok$/.test(result.message),
+      `${name} answered ok (${result.message})`,
+    )
+    await this.log(
+      '[chairside] screen=receipt',
+      /\[chairside\] screen=receipt/,
+      mark,
+    )
+    await this.shot(`${name}-receipt`, receiptDetail, { bookingChange: true })
+    await this.log(
+      '[chairside] screen=root',
+      /\[chairside\] screen=root/,
+      mark,
+      6_000,
+    )
+    return this.backend.fakes()
+  }
+
+  checkBookingChangeReply(name, before, after, chatId) {
+    const replies = sends(after).slice(sends(before).length)
+    this.check(
+      replies.length === 1 &&
+        replies[0].chatId === chatId &&
+        !replies[0].failed,
+      `${name} made exactly 1 successful fake Telegram send to ${BOOKED_CUSTOMER} (got ${replies.length} sends)`,
     )
   }
 
@@ -263,8 +333,8 @@ class Scenario {
     const before = await backend.fakes()
     mark = this.mark()
     const injectedAt = Date.now()
-    await backend.dev('POST', '/dev/inject', {
-      firstName: 'Anna',
+    const { chatId } = await backend.dev('POST', '/dev/inject', {
+      firstName: BOOKED_CUSTOMER,
       text: `Can I get a skin fade ${spoken(day)} at 3pm?`,
     })
     const shown = await this.log(
@@ -321,9 +391,9 @@ class Scenario {
       `the tap made exactly 1 fake calendar event (got ${booked.length})`,
     )
     this.check(
-      booked[0].summary === 'Chairside · Anna · Skin fade' &&
+      booked[0].summary === `Chairside · ${BOOKED_CUSTOMER} · Skin fade` &&
         Date.parse(booked[0].startUtc) === slot.getTime(),
-      `the event is "Chairside · Anna · Skin fade" at ${slot.toISOString()} (got ${booked[0].summary} at ${booked[0].startUtc})`,
+      `the event is "Chairside · ${BOOKED_CUSTOMER} · Skin fade" at ${slot.toISOString()} (got ${booked[0].summary} at ${booked[0].startUtc})`,
     )
     this.booking = {
       requestId,
@@ -340,6 +410,47 @@ class Scenario {
     await this.shot(
       'root-after-booking',
       'the receipt advanced to root by itself after 2 s',
+    )
+
+    // Move and cancel the existing booking through the same customer chat.
+    const movedStart = shopTime(day, 16)
+    const afterMove = await this.approveBookingChange({
+      name: 'move',
+      chatId,
+      text: 'can I come at 4 instead',
+      cardDetail:
+        'WANTS TO MOVE shows 15:00 ▶ 16:00 as free with Move & reply highlighted',
+      receiptDetail: `the move receipt confirms ${spoken(day)} at 16:00`,
+    })
+    this.checkBookingChangeReply('move', after, afterMove, chatId)
+    const moved = afterMove.calendar.events.find(
+      (event) =>
+        event.chairside &&
+        event.summary === booked[0].summary &&
+        Date.parse(event.startUtc) === movedStart.getTime(),
+    )
+    this.check(
+      moved &&
+        afterMove.calendar.events.length === after.calendar.events.length &&
+        !afterMove.calendar.events.some((event) => event.id === booked[0].id) &&
+        Date.parse(moved.endUtc) - Date.parse(moved.startUtc) ===
+          Date.parse(booked[0].endUtc) - Date.parse(booked[0].startUtc),
+      `move replaced the 15:00 event with one at 16:00 on the same day and kept its duration`,
+    )
+
+    const afterCancel = await this.approveBookingChange({
+      name: 'cancel',
+      chatId,
+      text: 'Sorry, I need to cancel',
+      cardDetail:
+        'WANTS TO CANCEL shows the moved 16:00 booking with Cancel & reply highlighted',
+      receiptDetail: `the cancellation receipt confirms ${spoken(day)} at 16:00`,
+    })
+    this.checkBookingChangeReply('cancel', afterMove, afterCancel, chatId)
+    this.check(
+      afterCancel.calendar.events.length === after.calendar.events.length - 1 &&
+        !afterCancel.calendar.events.some((event) => event.id === moved.id),
+      'cancel removed the 16:00 event',
     )
 
     // 5. Stale slot: a block lands while the card is on screen; the tap sends nothing.
@@ -506,8 +617,10 @@ function formatOffset(minutes) {
 function report(scenario, simulatorVersion, error) {
   const s = scenario
   const code = (value) => `\`${value}\``
+  const screenshot = (entry) =>
+    `${entry.number}. **${entry.name}**: ${entry.detail}. ${entry.lit} lit px. ![${entry.name}](${entry.path.replace('docs/evidence/', '')})`
   const lines = [
-    '# Simulator e2e: full run (US-011)',
+    '# Simulator e2e: full run (US-011, US-018, US-019)',
     '',
     `Run ${new Date(s.startedAt).toISOString()} by ${code('npm run e2e')} (${code('e2e/run.mjs')}): backend in TEST MODE (${code('DEV_INJECT=1')}, fake Telegram, fake calendar, fresh temp database), Vite dev server, evenhub-simulator ${simulatorVersion} with ${code('--automation-port 9898')}, SDK 0.0.16, Node ${process.version} on ${process.platform}. Simulator only: nothing here ran on G2 hardware or against real Telegram or Google.`,
     '',
@@ -515,11 +628,18 @@ function report(scenario, simulatorVersion, error) {
     '',
     '## Steps',
     '',
-    ...s.steps.map(
-      (entry) =>
-        `${entry.number}. **${entry.name}**: ${entry.detail}. ${entry.lit} lit px. ![${entry.name}](${entry.path.replace('docs/evidence/', '')})`,
-    ),
+    ...s.steps.map(screenshot),
     '',
+  ]
+  if (s.bookingChangeSteps.length) {
+    lines.push(
+      '## Move and cancel (after step 08)',
+      '',
+      ...s.bookingChangeSteps.map(screenshot),
+      '',
+    )
+  }
+  lines.push(
     '## Checks',
     '',
     ...s.checks.map((check) => `- [${check.ok ? 'x' : ' '}] ${check.label}`),
@@ -528,7 +648,7 @@ function report(scenario, simulatorVersion, error) {
     '',
     `- Root appointments seeded for the screenshot: ${s.seeded?.length ? s.seeded.join(', ') : 'none (too close to midnight in the shop time zone)'}.`,
     `- Clocks: Next/Then and card times are shop-local (${shop.timezone}, from the server); the header date and the "paused until" time are device-local. This machine runs at UTC${formatOffset(-new Date().getTimezoneOffset())}, so they differ here; on a phone in the shop they agree.`,
-  ]
+  )
   if (s.menuLog) {
     lines.push(
       `- Contextual menu: ${code('context_menu')} opened the system menu with the page's items; ${code('down')} + ${code('click')} chose "Pause cards 30 min" and the next rebuild carried the menu as "Resume cards"; choosing it again resumed cards (the rebuild carried "Pause cards 30 min" again). App lines while resuming: ${s.menuLog.map(code).join(', ')}.`,

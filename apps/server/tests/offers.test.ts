@@ -184,7 +184,7 @@ describe('offer acceptance', () => {
     expect(action.state).toBe('sent')
     const events = await f.events()
     expect(events).toHaveLength(2)
-    expect(events[1]).toEqual({
+    expect(events[1]).toMatchObject({
       ...at16,
       // Seeded with the action row, as every executor booking is.
       id: eventIdFor(tenant, `${offer.request_id}:${action.id}`, at16.startUtc),
@@ -560,4 +560,118 @@ describe('offer acceptance', () => {
       expect(await f.events()).toHaveLength(2)
     },
   )
+})
+
+describe('move offer acceptance', () => {
+  async function offerMove(f: Fixture) {
+    const booking = await f.cardFor(requestText, omar, 'Omar')
+    expect((await f.runtime.execute(tap(booking))).status).toBe('ok')
+    const [original] = await f.events()
+    const blocker = f.calendar.addForeignEvent({
+      startUtc: at16.startUtc,
+      endUtc: '2026-12-05T12:10:00.000Z',
+    })
+    const move = await f.cardFor('can I come at 4 instead', omar, 'Omar')
+    expect(move).toMatchObject({
+      header: 'WANTS TO MOVE',
+      lines: ['Omar · Skin fade', 'Sat 5 Dec 15:00 ▶ 16:00 · ○ taken'],
+    })
+    expect(
+      (await f.runtime.execute(tap(move, 'Offer Sat 5 Dec 16:15'))).status,
+    ).toBe('ok')
+    expect(await f.events()).toEqual([original, blocker])
+    expect(f.bookings()).toEqual([
+      expect.objectContaining({ status: 'active' }),
+    ])
+    expect(f.sends()).toHaveLength(2)
+    const offer = offers(f).at(-1)!
+    expect(offer).toMatchObject({
+      status: 'active',
+      booking_id: original!.privateProps.chairsideBookingId,
+    })
+    return { offer, original: original!, blocker }
+  }
+
+  it.each(['yes', 'inline button'])(
+    'moves the booking exactly once after %s',
+    async (mode) => {
+      const f = await bookingFixture({
+        callbacksSupported: mode === 'inline button',
+      })
+      const { offer, original, blocker } = await offerMove(f)
+      const accept = async () => {
+        if (mode === 'yes') return reply(f, 'yes')
+        const updateId = nextUpdate++
+        await f.telegram.emit({
+          type: 'callback',
+          updateId,
+          callbackQueryId: `move-${updateId}`,
+          fromId: omar,
+          chatId: omar,
+          messageId: offer.offer_message_id!,
+          data: f.sends()[1]!.callbackData!,
+          connectionId,
+        })
+      }
+      await accept()
+      await accept()
+      expect(await f.events()).toEqual([
+        blocker,
+        expect.objectContaining({
+          startUtc: '2026-12-05T12:15:00.000Z',
+          endUtc: '2026-12-05T13:00:00.000Z',
+        }),
+      ])
+      expect(f.bookings()).toEqual([
+        expect.objectContaining({
+          status: 'moved',
+          calendar_event_id: original.id,
+        }),
+        expect.objectContaining({
+          status: 'active',
+          replaced_booking_id: original.privateProps.chairsideBookingId,
+        }),
+      ])
+      expect(f.sends()).toHaveLength(3)
+      expect(f.sends()[2]).toMatchObject({
+        chatId: omar,
+        connectionId,
+        textSha256: textSha256(
+          'Done! Your Skin fade is now on Saturday 5 Dec at 16:15, Omar.',
+        ),
+      })
+      expect(offers(f)[0]?.status).toBe('accepted')
+      expect(cards(f)).toEqual([])
+    },
+  )
+
+  it('keeps the old booking if a move offer is taken before acceptance', async () => {
+    const f = await bookingFixture()
+    const { original } = await offerMove(f)
+    f.calendar.addForeignEvent({
+      startUtc: '2026-12-05T12:15:00.000Z',
+      endUtc: '2026-12-05T13:00:00.000Z',
+    })
+    await reply(f, 'yes')
+    expect(await f.events()).toContainEqual(original)
+    expect(f.bookings()).toEqual([
+      expect.objectContaining({ status: 'active' }),
+    ])
+    expect(f.sends()).toHaveLength(2)
+    const [next] = cards(f)
+    expect(next!.actions[0]?.label).toBe('Offer Sat 5 Dec 17:15')
+    expect(
+      (await f.runtime.execute(tap(next!, 'Offer Sat 5 Dec 17:15'))).status,
+    ).toBe('ok')
+    await reply(f, 'yes')
+    expect(f.bookings()).toEqual([
+      expect.objectContaining({ status: 'moved' }),
+      expect.objectContaining({
+        status: 'active',
+        slot_start_utc: '2026-12-05T13:15:00.000Z',
+      }),
+    ])
+    expect(await f.events()).not.toContainEqual(original)
+    expect(f.sends()).toHaveLength(4)
+  })
 })
