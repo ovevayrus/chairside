@@ -8,21 +8,21 @@ David works alone in his barbershop in Dubai. He's halfway through a haircut, cl
 
 [ON SCREEN] Alex asks, "Can I get a haircut Saturday 5 Dec at 3pm?" Show "Alex · Haircut" and "Sat 5 Dec · 15:00 · ● free (45 min)". After the press, hold on his chat and the calendar event "Chairside · Alex · Haircut" from 15:00 to 15:45.
 
-Alex wants a haircut at three on Saturday. He's writing to David's usual Telegram account. David's connected a Telegram Business bot and chosen which chats it can read. The shop server reads Alex's message in memory. It never stores or logs the text or sends it to a third-party AI. Chairside checks David's Google Calendar for the whole forty-five-minute haircut and allows for the time he leaves between clients.
+In their usual Telegram chat, Alex asks for a haircut at three on Saturday. David's connected a Telegram Business bot and chosen which chats it can read. Chairside reads the message in memory on the shop server. Simple rules built from David's own service names pick out the service, day and time. No AI ever sees the message, and Chairside never stores or logs the text.
 
-"Book & reply" is already highlighted. David can swipe on the ring to see other times or "Not now". Three works, so he presses once. Chairside checks again and books Alex's haircut from three to three forty-five. Look right under his question. There's the confirmation from David's own Telegram account.
+Chairside checks David's Google Calendar for the full forty-five minutes. "Book & reply" is already highlighted. David can swipe the ring for other times or "Not now". Three works, so he presses once. Alex's haircut goes on the calendar. Right under his question is the confirmation from David's own Telegram account.
 
 [ON SCREEN] James asks for a skin fade at 3pm. Show "Offer Sat 5 Dec 16:00", then James's chat, the new event and David's glasses.
 
-James wants a skin fade at three, too. Alex's already booked, so David's card highlights four, the next opening that fits. One press on the ring sends James the offer from David's account. If James writes "yes but five is better," David sees a new request. Watch James type "yes" on his own phone. That accepts the time David just offered. Chairside checks four again, books the fade and confirms in James's chat. David sees "James accepted · Booked" on his glasses without pressing again.
+James wants a skin fade at three, too. Alex finishes at quarter to four and David leaves five minutes between clients, so the card highlights four, the next opening that fits. David presses to send the offer. James types "yes" on his own phone. Chairside checks four again before it books the fade and confirms in James's chat. David sees "James accepted · Booked" on his glasses without pressing again.
 
 [ON SCREEN] Back in his chat with David, Alex asks, "Can you also do a beard trim Saturday 5 Dec at 5pm?" With the card showing 17:00 free, add a 30-minute "Busy" block at 17:00. Simulate the ring press. Hold Alex's chat and the refreshed card side by side. Keep his haircut question and David's confirmation visible above the beard-trim request.
 
-Alex is back. He asks for a beard trim at five in the same chat. David's card shows five is free. What if someone takes that slot while David's reading? I'll mark five to five thirty as Busy on his calendar. When David presses the ring to book, Chairside checks again and sees the block. The last line in Alex's chat is still his question, and there's no beard trim on the calendar. David's card says "Just taken · nothing sent" and gives him five forty-five to offer.
+Alex asks for a beard trim at five. David's card shows it's free. What if someone takes that slot while David's reading? I'll mark five to five thirty as Busy on his calendar. When David presses to book, Chairside sees the block. Alex's chat still ends with his question, and there's no beard trim on the calendar. The card says "Just taken · nothing sent" and gives him five forty-five to offer. A double press takes David back to his home screen.
 
-[ON SCREEN] End on the glasses' home screen, with both bookings in the calendar.
+[ON SCREEN] Double press the ring to return to David's home screen. Hold there with both bookings visible on the calendar.
 
-That's three requests, and David never touched his phone. He didn't put the clippers down or turn away from the person in his chair. It saves him about a minute a booking, too: no unlocking the phone, no switching from the chat to the calendar and back, no typing a reply. But the real win is that his hands never leave his work. I'd start with solo barbers in Telegram-heavy markets like Dubai, where the next booking can come straight from a chat they already have.
+That's three requests, and David never touched his phone. Call it about a minute saved per booking. But the real win is that his hands never leave his work. I'd start with solo barbers in Telegram-heavy markets like Dubai, where the next booking can come straight from a chat they already have.
 
 ## Q&A prep
 
