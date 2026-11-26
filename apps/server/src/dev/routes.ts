@@ -36,6 +36,7 @@ export interface DevDeps {
   calendar: FakeCalendar
   pairing: PairingService
   hub: LiveHub
+  now(): Date
 }
 
 export const DEV_CONNECTION_ID = 'dev-test-connection'
@@ -83,7 +84,7 @@ export function mountDevRoutes(
   env: DevEnv = process.env,
 ): boolean {
   if (!isDevEnabled(env)) return false
-  const { db, shopId, shop, telegram, calendar, pairing, hub } = deps
+  const { db, shopId, shop, telegram, calendar, pairing, hub, now } = deps
   const ownerId = deps.ownerUserId ?? DEV_OWNER_ID
   // Telegram-like ids that never repeat, even across restarts on one database.
   let lastId = Date.now()
@@ -154,7 +155,7 @@ export function mountDevRoutes(
       fromId: chatId,
       firstName,
       text,
-      dateIso: new Date().toISOString(),
+      dateIso: now().toISOString(),
       direction: 'incoming',
     })
     return c.json({ ok: true, chatId, messageId, updateId })

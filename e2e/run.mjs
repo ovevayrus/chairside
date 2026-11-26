@@ -15,7 +15,7 @@
 // process trees this run started are killed: in a finally, on Ctrl+C and on a
 // crash.
 import { Backend } from './lib/backend.mjs'
-import { fullRun } from './lib/full.mjs'
+import { fullRun, fullShopNow } from './lib/full.mjs'
 import { idleRun } from './lib/idle.mjs'
 import {
   assertPortsFree,
@@ -58,7 +58,8 @@ async function main() {
     [packageBin('typescript', 'tsc'), '-b', 'packages/shared'],
     { cwd: root, windowsHide: true },
   )
-  backend = new Backend()
+  const full = !flags.idle && !flags.smoke && !flags.spike
+  backend = new Backend({ now: full ? fullShopNow(new Date()) : undefined })
   await backend.start()
   await startVite()
 
@@ -67,7 +68,7 @@ async function main() {
     step('PASS (2-minute idle check; docs/evidence/e2e-idle-after-2min.png)')
     return
   }
-  if (!flags.smoke && !flags.spike) {
+  if (full) {
     await fullRun(simulator, backend)
     step('PASS (full run; see docs/evidence/e2e-full.md)')
     return

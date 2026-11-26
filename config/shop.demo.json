@@ -50,6 +50,8 @@
     "ask_time": "Hi {name}! What time suits you for your {service} on {day} {date}?",
     "offer_accepted": "See you on {day} {date} at {time}, {name}! Your {service} is booked.",
     "moved": "Done! Your {service} is now on {day} {date} at {time}, {name}.",
-    "cancelled": "No problem, {name}. Your {service} on {day} {date} at {time} is cancelled."
+    "cancelled": "No problem, {name}. Your {service} on {day} {date} at {time} is cancelled.",
+    "late_ok": "No problem, {name}! See you at {time}.",
+    "late_ask": "No problem, {name}. Roughly what time will you get here?"
   }
 }

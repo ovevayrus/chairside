@@ -1,7 +1,9 @@
 import type { ActionResponse } from '@chairside/shared'
+import { DateTime } from 'luxon'
 import { matchesBooking, type CalendarAdapter } from '../calendar/adapter.js'
 import { bookingEvent, bookingFor, type BookingRow } from '../db/bookings.js'
 import type { RequestRow } from '../db/requests.js'
+import { isUnendedBookingToday } from '../parse/parser.js'
 import { finish, type ActionContext, type ActionRow } from './context.js'
 
 export function currentBooking(
@@ -9,11 +11,17 @@ export function currentBooking(
   row: RequestRow,
 ): BookingRow | undefined {
   const booking = bookingFor(ctx.store, row.booking_id)
+  const now = ctx.store.now()
   if (
     booking?.status === 'active' &&
     booking.reply_status === 'sent' &&
     !booking.pending_action_id &&
-    Date.parse(booking.slot_start_utc) > ctx.store.now().getTime()
+    (row.intent === 'late'
+      ? isUnendedBookingToday(
+          booking,
+          DateTime.fromJSDate(now, { zone: ctx.store.shop.timezone }),
+        )
+      : Date.parse(booking.slot_start_utc) > now.getTime())
   )
     return booking
 }

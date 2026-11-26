@@ -68,13 +68,18 @@ async function recoverCalendar(
   const input = plannedBooking(ctx, action, row, p)
   if (!input || !action.planned_event_id)
     throw new Error('Incomplete calendar intent')
-  const moving = p.kind === 'move' || p.kind === 'move_offer_accepted'
+  const moving =
+    p.kind === 'move' ||
+    p.kind === 'move_offer_accepted' ||
+    p.kind === 'late_shift'
+  const result =
+    p.kind === 'late_shift' ? 'Shifted' : moving ? 'Moved' : 'Booked'
   const previous = moving ? bookingFor(store, row.booking_id) : undefined
   if (moving && !previous) throw new Error('Missing original booking')
   // A committed move has already verified the new event. The old event may
   // have been deleted, and a failed cleanup has its own durable retry marker.
   if (moving && bookingFor(store, action.id)) {
-    recoverReply(ctx, action, row, p, 'Moved')
+    recoverReply(ctx, action, row, p, result)
     return
   }
   let event
@@ -106,7 +111,7 @@ async function recoverCalendar(
   }
   if (await verifyAndRecord(ctx, action, row, p, input, previous)) return
   if (moving) await cleanupForMove(ctx, row)
-  recoverReply(ctx, action, row, p, moving ? 'Moved' : 'Booked')
+  recoverReply(ctx, action, row, p, result)
 }
 
 function recoverReply(
@@ -114,7 +119,7 @@ function recoverReply(
   action: ActionRow,
   row: RequestRow,
   p: Proposal,
-  result: 'Booked' | 'Moved' | 'Cancelled',
+  result: 'Booked' | 'Moved' | 'Shifted' | 'Cancelled',
 ) {
   const { store } = ctx
   store.transaction(() => {
@@ -124,7 +129,8 @@ function recoverReply(
         .run(action.id)
     const card = recoveryCard(ctx, row, p, 'Send now')
     const cleanup =
-      result === 'Moved' && bookingFor(store, row.booking_id)?.cleanup_pending
+      (result === 'Moved' || result === 'Shifted') &&
+      bookingFor(store, row.booking_id)?.cleanup_pending
     finish(
       ctx,
       action,

@@ -16,7 +16,7 @@ function capture(stream: NodeJS.WritableStream) {
   return () => Buffer.concat(chunks).toString('utf8')
 }
 
-it('keeps booking, move and cancellation text out of logs, SQLite, WAL and SHM', async () => {
+it('keeps booking, move, late and cancellation text out of logs, SQLite, WAL and SHM', async () => {
   const stdout = capture(process.stdout)
   const stderr = capture(process.stderr)
   // Vitest replaces console; exercise the server's actual stderr destination.
@@ -27,8 +27,9 @@ it('keeps booking, move and cancellation text out of logs, SQLite, WAL and SHM',
 
   const canary = 'CANARY-7319 skin fade sat 3pm'
   const moveCanary = 'SPINDLE-CANARY'
+  const lateCanary = 'TRIANGLE-CANARY'
   const cancelCanary = 'PIVOT-CANARY'
-  const canaries = ['CANARY-7319', moveCanary, cancelCanary]
+  const canaries = ['CANARY-7319', moveCanary, lateCanary, cancelCanary]
   let failAfterInsert = false
   const f = await bookingFixture({
     persistent: true,
@@ -41,6 +42,11 @@ it('keeps booking, move and cancellation text out of logs, SQLite, WAL and SHM',
   expect(f.bookings()).toHaveLength(1)
   const move = await f.cardFor(`can I come at 4 instead ${moveCanary}`)
   expect((await f.runtime.execute(tap(move, 'Move & reply'))).status).toBe('ok')
+  f.advance(Date.parse('2026-12-05T11:30:00Z') - f.now().getTime())
+  const late = await f.cardFor(`running 15 min late ${lateCanary}`)
+  expect(
+    (await f.runtime.execute(tap(late, 'Shift to 16:15 & reply'))).status,
+  ).toBe('ok')
   const cancel = await f.cardFor(`Sorry, I need to cancel ${cancelCanary}`)
   expect((await f.runtime.execute(tap(cancel, 'Cancel & reply'))).status).toBe(
     'ok',

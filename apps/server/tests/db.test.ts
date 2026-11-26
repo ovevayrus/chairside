@@ -58,7 +58,7 @@ it('opens a WAL database with every section 4.2 table and column', () => {
     devices: 'id shop_id token_hash created_at last_seen_at',
     pair_codes: 'code device_nonce expires_at shop_id consumed_at',
     requests:
-      'id shop_id chat_id customer_first_name intent service_id requested_start_utc status version last_customer_msg_at created_at updated_at booking_id',
+      'id shop_id chat_id customer_first_name intent service_id requested_start_utc status version last_customer_msg_at created_at updated_at booking_id late_impact',
     proposals: 'id request_id version kind slot_start_utc slot_end_utc label',
     offers:
       'id request_id chat_id slot_start_utc slot_end_utc offer_message_id status expires_at booking_id',

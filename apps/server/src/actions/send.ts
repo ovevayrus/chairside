@@ -26,7 +26,10 @@ function replyKind(p: Proposal) {
     case 'offer':
     case 'ask_day':
     case 'ask_time':
+    case 'late_ask':
       return kind
+    case 'late_shift':
+      return 'late_ok'
     case 'move':
     case 'move_offer_accepted':
       return 'moved'
@@ -39,13 +42,19 @@ function replyKind(p: Proposal) {
   }
 }
 
+function isMoveConfirmation(p: Proposal) {
+  const kind = replyKind(p)
+  return kind === 'moved' || kind === 'late_ok'
+}
+
 function isConfirmation(p: Proposal) {
   const kind = replyKind(p)
-  return kind === 'book' || kind === 'offer_accepted' || kind === 'moved'
+  return kind === 'book' || kind === 'offer_accepted' || isMoveConfirmation(p)
 }
 
 function appointmentResult(p: Proposal) {
   const kind = replyKind(p)
+  if (kind === 'late_ok') return 'Shifted'
   if (kind === 'moved') return 'Moved'
   if (kind === 'cancelled') return 'Cancelled'
   if (isConfirmation(p)) return 'Booked'
@@ -57,7 +66,7 @@ function withMoveCleanup(
   p: Proposal,
   receipt: string,
 ): string {
-  return replyKind(p) === 'moved' &&
+  return isMoveConfirmation(p) &&
     bookingFor(ctx.store, row.booking_id)?.cleanup_pending
     ? `${receipt} · old slot still on calendar`
     : receipt
@@ -164,10 +173,9 @@ async function confirmExistingBooking(
     )
       return false
     const events = await ctx.calendar.listEvents(startUtc, endUtc)
-    const previous =
-      replyKind(p) === 'moved'
-        ? bookingFor(ctx.store, row.booking_id)
-        : undefined
+    const previous = isMoveConfirmation(p)
+      ? bookingFor(ctx.store, row.booking_id)
+      : undefined
     const ownership = previous && bookingEvent(previous)
     const overlapping = events.filter(
       (other) =>
@@ -220,6 +228,13 @@ function sentReceipt(ctx: ActionContext, row: RequestRow, p: Proposal): string {
       return `● ${displayText(row.customer_first_name, 24) || 'Customer'} accepted · Booked ${when}`
     case 'moved':
       return withMoveCleanup(ctx, row, p, `● Moved to ${when}`)
+    case 'late_ok':
+      return withMoveCleanup(
+        ctx,
+        row,
+        p,
+        `● Shifted to ${slotTime(ctx, p).toFormat('HH:mm')}`,
+      )
     case 'cancelled':
       return `● Cancelled ${when}`
     case 'offer':
@@ -228,6 +243,8 @@ function sentReceipt(ctx: ActionContext, row: RequestRow, p: Proposal): string {
       return '● Asked which day suits'
     case 'ask_time':
       return '● Asked what time suits'
+    case 'late_ask':
+      return '● Asked how late'
   }
 }
 

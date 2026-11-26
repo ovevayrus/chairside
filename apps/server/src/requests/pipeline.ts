@@ -7,7 +7,7 @@ import {
   openOffer,
 } from '../actions/offers.js'
 import type { CalendarAdapter } from '../calendar/adapter.js'
-import { upcomingBookings, type BookingRow } from '../db/bookings.js'
+import { unendedBookings, type BookingRow } from '../db/bookings.js'
 import { endActiveOffers, setOfferStatus, type OfferRow } from '../db/offers.js'
 import type { RequestRow, RequestStore } from '../db/requests.js'
 import type { LiveHub } from '../live/hub.js'
@@ -24,7 +24,7 @@ import type {
   DeletedEvent,
   TelegramEvent,
 } from '../telegram/events.js'
-import { planProposals } from './cards.js'
+import { planLateChange, planProposals } from './cards.js'
 import { chatKey, ChatDebounce, type BatchInfo } from './debounce.js'
 
 type Connection = Omit<ConnectionEvent, 'type' | 'updateId'>
@@ -66,14 +66,26 @@ export function createRequestPipeline(options: PipelineOptions) {
     parsed: ParseResult,
     booking?: BookingRow,
   ) {
-    const proposals = await planProposals(
-      parsed,
-      store.shop,
-      calendar,
-      store.now(),
-      [],
-      booking,
-    )
+    const now = store.now()
+    const plan =
+      parsed.intent === 'late' && booking
+        ? await planLateChange(
+            booking,
+            parsed.startUtc,
+            store.shop,
+            calendar,
+            now,
+          )
+        : {
+            proposals: await planProposals(
+              parsed,
+              store.shop,
+              calendar,
+              now,
+              [],
+              booking,
+            ),
+          }
     if (closed) return
     const row = store.save({
       id: info.requestId,
@@ -84,7 +96,7 @@ export function createRequestPipeline(options: PipelineOptions) {
       lastCustomerMsgAt: info.lastCustomerMsgAt,
       connectionId: info.connectionId,
       messageIds: ids,
-      proposals,
+      ...plan,
     })
     upsert(row)
     await hub.broadcastState(shopId)
@@ -126,7 +138,7 @@ export function createRequestPipeline(options: PipelineOptions) {
           setOfferStatus(store, offer.id, 'answered')
       }
       const now = store.now()
-      const bookings = upcomingBookings(store, info.chatId)
+      const bookings = unendedBookings(store, info.chatId)
       const parsed = parseRequest(text, now, store.shop, bookings)
       const requestedDayUtc =
         parsed.intent === 'book' &&

@@ -52,6 +52,10 @@ export const shopConfigSchema = z
       cancelled: template.default(
         'No problem, {name}. Your {service} on {day} {date} at {time} is cancelled.',
       ),
+      late_ok: text.default('No problem, {name}! See you at {time}.'),
+      late_ask: text.default(
+        'No problem, {name}. Roughly what time will you get here?',
+      ),
     }),
   })
   .refine(

@@ -16,6 +16,7 @@ export interface RequestRow {
   service_id: string | null
   booking_id: string | null
   requested_start_utc: string | null
+  late_impact: string | null
   status: string
   version: number
   last_customer_msg_at: string
@@ -42,6 +43,7 @@ interface RequestInput {
   messageIds: number[]
   proposals: Proposal[]
   bookingId?: string
+  lateImpact?: string
 }
 
 export class RequestStore {
@@ -90,7 +92,7 @@ export class RequestStore {
       for (const { id } of interrupted) {
         this.db
           .prepare(
-            "UPDATE requests SET status='pending',intent='unknown',requested_start_utc=NULL,booking_id=NULL,version=version+1 WHERE id=?",
+            "UPDATE requests SET status='pending',intent='unknown',requested_start_utc=NULL,booking_id=NULL,late_impact=NULL,version=version+1 WHERE id=?",
           )
           .run(String(id))
         this.insertProposals(this.get(String(id))!, [
@@ -217,10 +219,11 @@ export class RequestStore {
       this.db
         .prepare(
           `INSERT INTO requests (id,shop_id,chat_id,customer_first_name,intent,service_id,
-        requested_start_utc,booking_id,status,version,last_customer_msg_at,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?,?,'pending',1,?,?,?) ON CONFLICT(id) DO UPDATE SET
+        requested_start_utc,booking_id,late_impact,status,version,last_customer_msg_at,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,'pending',1,?,?,?) ON CONFLICT(id) DO UPDATE SET
         customer_first_name=excluded.customer_first_name,intent=excluded.intent,service_id=excluded.service_id,
         requested_start_utc=excluded.requested_start_utc,booking_id=excluded.booking_id,
+        late_impact=excluded.late_impact,
         status='pending',version=requests.version+1,
         last_customer_msg_at=max(requests.last_customer_msg_at,excluded.last_customer_msg_at),updated_at=excluded.updated_at`,
         )
@@ -233,6 +236,7 @@ export class RequestStore {
           parsed.serviceId ?? null,
           parsed.startUtc ?? null,
           input.bookingId ?? null,
+          input.lateImpact ?? null,
           lastCustomerMsgAt,
           ts,
           ts,

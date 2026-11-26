@@ -19,6 +19,8 @@ export interface FindOpeningsInput {
   busy: Interval[]
   from: string
   requested?: string
+  /** Let the single requested start use any minute. Alternatives stay on the grid. */
+  allowOffGridRequest?: boolean
   count?: number
   horizonDays?: number
 }
@@ -73,6 +75,7 @@ function startsWithinHours(
   hours: { open: string; close: string },
   durationMs: number,
   gridMin: number,
+  offGridRequest: number,
 ): number[] {
   const open = clockMinutes(hours.open)
   const close = clockMinutes(hours.close)
@@ -91,7 +94,10 @@ function startsWithinHours(
       : firstMinute + (time - midnight) / minuteMs
     if (minute < open || minute >= close) {
       openUntil = time
-    } else if (minute % gridMin === 0 && time + durationMs <= openUntil) {
+    } else if (
+      (minute % gridMin === 0 || time === offGridRequest) &&
+      time + durationMs <= openUntil
+    ) {
       starts.push(time)
     }
   }
@@ -108,6 +114,7 @@ export function findOpenings({
   busy,
   from,
   requested,
+  allowOffGridRequest = false,
   count = 3,
   horizonDays = 7,
 }: FindOpeningsInput): FindOpeningsResult {
@@ -157,6 +164,7 @@ export function findOpenings({
         hoursToday,
         durationMs,
         gridMin,
+        allowOffGridRequest && request?.exact ? requestedMs : -Infinity,
       )) {
         if (
           start < earliest.toMillis() ||

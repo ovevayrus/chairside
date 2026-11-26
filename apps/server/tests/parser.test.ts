@@ -339,3 +339,141 @@ describe('parseRequest with a confirmed New York haircut', () => {
     })
   })
 })
+
+describe('parseRequest for a late arrival', () => {
+  const shop = loadShopConfig('../../config/shop.recording.json')
+  const now = new Date('2027-01-23T14:55:00-05:00')
+  const booked = {
+    id: 'alex-haircut',
+    service_id: 'haircut',
+    slot_start_utc: '2027-01-23T20:00:00.000Z',
+    slot_end_utc: '2027-01-23T20:45:00.000Z',
+  }
+
+  it.each([
+    ['running 15 min late', 15, '2027-01-23T20:15:00.000Z'],
+    ['Sorry, 10 minutes late', 10, '2027-01-23T20:10:00.000Z'],
+    ['be there in 20', 15, '2027-01-23T20:15:00.000Z'],
+    ["can't be there till 3:20", 20, '2027-01-23T20:20:00.000Z'],
+    ['can’t be there till 15:20', 20, '2027-01-23T20:20:00.000Z'],
+    ["I'm running late, be there at 3:20", 20, '2027-01-23T20:20:00.000Z'],
+    ['running 1 min late', 1, '2027-01-23T20:01:00.000Z'],
+    ['running 120 min late', 120, '2027-01-23T22:00:00.000Z'],
+  ])('parses %j as a %i minute delay', (text, lateMinutes, startUtc) => {
+    expect(parseRequest(text, now, shop, [booked])).toMatchObject({
+      intent: 'late',
+      bookingId: booked.id,
+      serviceId: booked.service_id,
+      lateMinutes,
+      startUtc,
+    })
+  })
+
+  it.each([
+    ['15:05:00', 'be there in 20', 25, '2027-01-23T20:25:00.000Z'],
+    ['14:50:00', 'be there in 15', 5, '2027-01-23T20:05:00.000Z'],
+    ['15:05:30', 'be there in 20', 25, '2027-01-23T20:25:00.000Z'],
+    ['14:50:00', 'get there in 11 min', 1, '2027-01-23T20:01:00.000Z'],
+    ['14:55:00', 'arrive in 125 minutes', 120, '2027-01-23T22:00:00.000Z'],
+  ])(
+    'at %s, parses %j as a %i minute delay',
+    (sentAt, text, lateMinutes, startUtc) => {
+      const sent = new Date(`2027-01-23T${sentAt}-05:00`)
+      expect(parseRequest(text, sent, shop, [booked])).toMatchObject({
+        intent: 'late',
+        bookingId: booked.id,
+        serviceId: booked.service_id,
+        lateMinutes,
+        startUtc,
+      })
+    },
+  )
+
+  it.each([
+    ['14:30', 'be there in 20'],
+    ['14:40', 'be there in 20'],
+    ['15:01', 'arrive in 2 hours'],
+  ])('at %s, keeps %j from proposing a shift', (sentAt, text) => {
+    const sent = new Date(`2027-01-23T${sentAt}:00-05:00`)
+    const result = parseRequest(text, sent, shop, [booked])
+    expect(result.intent).toBe('unknown')
+    expect(result.bookingId).toBeUndefined()
+    expect(result.startUtc).toBeUndefined()
+    expect(result.lateMinutes).toBeUndefined()
+  })
+
+  it('allows a late report without a delay after the booking has started', () => {
+    const inProgress = new Date('2027-01-23T15:05:00-05:00')
+    const result = parseRequest("I'm running late", inProgress, shop, [booked])
+    expect(result).toMatchObject({ intent: 'late', bookingId: booked.id })
+    expect(result.lateMinutes).toBeUndefined()
+    expect(result.startUtc).toBeUndefined()
+  })
+
+  it.each([
+    'running 121 min late',
+    'running 0 min late',
+    'running 3h late',
+    'running three hours late',
+    'be there in 3 hours',
+    'be there in 3 days',
+    "can't be there till 3:20 tomorrow",
+    "can't be there till 5:01pm",
+    "can't be there till 2:50pm",
+  ])('routes %j to the owner without proposing a booking change', (text) => {
+    const result = parseRequest(text, now, shop, [booked])
+    expect(result.intent).toBe('unknown')
+    expect(result.bookingId).toBeUndefined()
+    expect(result.startUtc).toBeUndefined()
+  })
+
+  it('needs an unended booking that starts today in the shop time zone', () => {
+    const afterMidnightUtc = new Date('2027-01-24T01:00:00.000Z')
+    const evening = {
+      ...booked,
+      slot_start_utc: '2027-01-24T01:10:00.000Z',
+      slot_end_utc: '2027-01-24T01:55:00.000Z',
+    }
+    const tomorrow = {
+      ...booked,
+      slot_start_utc: '2027-01-24T20:00:00.000Z',
+      slot_end_utc: '2027-01-24T20:45:00.000Z',
+    }
+    const overnight = {
+      ...booked,
+      slot_start_utc: '2027-01-23T04:50:00.000Z',
+      slot_end_utc: '2027-01-23T05:35:00.000Z',
+    }
+    expect(
+      parseRequest('be there in 20', afterMidnightUtc, shop, [evening]).intent,
+    ).toBe('late')
+    expect(
+      parseRequest('be there in 20', new Date(booked.slot_end_utc), shop, [
+        booked,
+      ]).intent,
+    ).toBe('unknown')
+    expect(parseRequest('be there in 20', now, shop, [tomorrow]).intent).toBe(
+      'unknown',
+    )
+    expect(
+      parseRequest(
+        'be there in 20',
+        new Date('2027-01-23T05:00:00.000Z'),
+        shop,
+        [overnight],
+      ).intent,
+    ).toBe('unknown')
+    expect(parseRequest('be there in 20', now, shop).intent).toBe('unknown')
+  })
+
+  it('keeps an ordinary request with a similar word as a new booking', () => {
+    const result = parseRequest(
+      'Can I get a haircut at 3pm later this week?',
+      now,
+      shop,
+      [booked],
+    )
+    expect(result.intent).toBe('book')
+    expect(result.bookingId).toBeUndefined()
+  })
+})

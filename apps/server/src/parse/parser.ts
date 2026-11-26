@@ -4,11 +4,12 @@ import { parseSchedule } from './schedule.js'
 import { matchService } from './service.js'
 
 export type ParseResult = {
-  intent: 'book' | 'move' | 'cancel' | 'unknown'
+  intent: 'book' | 'move' | 'cancel' | 'late' | 'unknown'
   bookingId?: string
   serviceId?: string
   startUtc?: string
   requestedDayUtc?: string
+  lateMinutes?: number
   confidence: number
   needs: Array<'date' | 'time' | 'service'>
 }
@@ -17,10 +18,11 @@ export interface BookingTarget {
   id: string
   service_id: string | null
   slot_start_utc: string
+  slot_end_utc?: string
 }
 
 const moveCue =
-  /\b(?:instead|move|reschedule|switch|earlier|later|rather|push\s+(?:it|back)|change\s+(?:the\s+time|my\s+(?:appointment|booking)|it))\b/i
+  /\b(?:instead|move|reschedule|switch|earlier|later(?!\s+(?:today|tomorrow|(?:this|next)\s+week)\b)|rather|push\s+(?:it|back)|change\s+(?:the\s+time|my\s+(?:appointment|booking)|it))\b/i
 const newBookingCue = /\b(?:also|another|too|as\s+well|again|book)\b/i
 const otherCustomerCue =
   /\b(?:(?:someone|somebody)\s+else|for\s+(?:him|her|them)|(?:can|could)\s+(?:he|she|they)|(?:my|our)\s+(?:(?:older|younger|little)\s+)?(?:brother|sister|friend|son|daughter|partner|husband|wife|dad|mom|mum|father|mother|child|kid|cousin|nephew|niece))\b/i
@@ -45,6 +47,117 @@ const durationCue = new RegExp(
 const shiftUnitCue = new RegExp(String.raw`\b${shiftUnit}\b`, 'i')
 const vagueShiftCue =
   /\b(?:(?:come|a\s+(?:bit|little|while))\s+(?:earlier|later)|(?:move|shift)\s+(?:it|me)\s+(?:back|forward))\b/i
+const lateNumber = String.raw`([+-]?\d+(?:\.\d+)?)`
+const lateUnit = String.raw`(?:${shiftUnit}|[mh])`
+const arrivalVerb = String.raw`(?:be\s+there|get\s+there|arrive)`
+const relativeArrival = String.raw`\b${arrivalVerb}\s+in\s+(?:about\s+)?`
+const lateDuration = new RegExp(
+  String.raw`(?<![\w.+-])${lateNumber}\s*(${lateUnit})\s+late\b`,
+  'i',
+)
+const arrivingIn = new RegExp(
+  String.raw`${relativeArrival}${lateNumber}(?:\s*(${lateUnit})\b|(?=\s*(?:$|[!?,]|\.(?!\d))))`,
+  'i',
+)
+const arrivingAt = new RegExp(
+  String.raw`\b(?:can['’]?t|cannot|won['’]?t)\s+(?:${arrivalVerb}|make\s+it|come)\s+(?:until|till|til|before)\s+`,
+  'i',
+)
+const statedArrival = new RegExp(
+  String.raw`\b(?:eta\b\s*:?\s*|${arrivalVerb}\s+(?:at|by)\s+)`,
+  'i',
+)
+const durationLike = String.raw`(?:${lateUnit}|days?|weeks?|seconds?|secs?)`
+const lateWithUnparsedTiming = new RegExp(
+  String.raw`\b${durationLike}\s+late\b|${relativeArrival}(?:[+-]?\d|\w+\s+${durationLike}\b)`,
+  'i',
+)
+const vagueLate =
+  /(?:^\s*(?:sorry[!,.\s]+)?late\s*[!.?]*\s*$|\b(?:running|i(?:['’]m|\s+am)|we(?:['’]re|\s+are)|(?:i|we)(?:['’]ll|\s+will)\s+be)\s+(?:(?:a\s+(?:little|bit)|very)\s+)?late\b)/i
+
+export function isUnendedBookingToday(
+  target: BookingTarget,
+  localNow: DateTime,
+): boolean {
+  return (
+    target.slot_end_utc !== undefined &&
+    Date.parse(target.slot_end_utc) > localNow.toMillis() &&
+    DateTime.fromISO(target.slot_start_utc, { zone: localNow.zone }).hasSame(
+      localNow,
+      'day',
+    )
+  )
+}
+
+function parseLate(
+  text: string,
+  now: DateTime,
+  shop: ShopConfig,
+  bookings: readonly BookingTarget[],
+): ParseResult | undefined {
+  const explicitDelay = lateDuration.exec(text)
+  const duration = explicitDelay ?? arrivingIn.exec(text)
+  const vague = vagueLate.test(text)
+  const arrival =
+    arrivingAt.exec(text) ?? (vague ? statedArrival.exec(text) : null)
+  const unsupportedTiming = !duration && lateWithUnparsedTiming.test(text)
+  if (!duration && !arrival && !vague && !unsupportedTiming) return
+
+  const unresolved: ParseResult = {
+    intent: 'unknown',
+    confidence: 0,
+    needs: [],
+  }
+  if (unsupportedTiming) return unresolved
+  const target = bookings.find((booking) => isUnendedBookingToday(booking, now))
+  if (!target) return unresolved
+
+  const booked = DateTime.fromISO(target.slot_start_utc, {
+    zone: shop.timezone,
+  })
+  let lateMinutes: number | undefined
+  if (duration) {
+    const minutes =
+      Number(duration[1]) * (/^h/i.test(duration[2] ?? '') ? 60 : 1)
+    if (!Number.isSafeInteger(minutes) || minutes < 0) return unresolved
+    // Proposed start times use whole minutes, even when the clock has seconds.
+    lateMinutes = explicitDelay
+      ? minutes
+      : now.startOf('minute').diff(booked, 'minutes').minutes + minutes
+  } else if (arrival) {
+    const stated = parseSchedule(
+      text.slice(arrival.index + arrival[0].length),
+      now,
+      shop,
+      true,
+      booked,
+    )
+    if (stated.hasRelative) return unresolved
+    if (stated.startUtc) {
+      const start = DateTime.fromISO(stated.startUtc, { zone: shop.timezone })
+      if (!start.hasSame(booked, 'day')) return unresolved
+      lateMinutes = start.diff(booked, 'minutes').minutes
+    }
+  }
+
+  if (
+    lateMinutes !== undefined &&
+    (!Number.isSafeInteger(lateMinutes) || lateMinutes < 1 || lateMinutes > 120)
+  )
+    return unresolved
+
+  return {
+    intent: 'late',
+    bookingId: target.id,
+    serviceId: target.service_id ?? shop.defaultServiceId,
+    confidence: 1,
+    needs: lateMinutes === undefined ? ['time'] : [],
+    ...(lateMinutes !== undefined && {
+      lateMinutes,
+      startUtc: booked.plus({ minutes: lateMinutes }).toUTC().toISO()!,
+    }),
+  }
+}
 
 function readMoveOffset(text: string): number | undefined {
   const command = commandedShift.exec(text)?.groups
@@ -142,17 +255,24 @@ export function parseRequest(
   shop: ShopConfig,
   bookings: readonly BookingTarget[] = [],
 ): ParseResult {
+  const localNow = DateTime.fromJSDate(now, { zone: shop.timezone })
+  const late = parseLate(text, localNow, shop, bookings)
+  if (late) return late
+
   const service = matchService(text, shop.services)
   const booking = /\b(?:book|appointment)\b/i.test(text)
   const newBooking = newBookingCue.test(text) || otherCustomerCue.test(text)
-  const localNow = DateTime.fromJSDate(now, { zone: shop.timezone })
   const shifting = shiftVerb.test(text)
   const vagueShift = vagueShiftCue.test(text)
   const move = moveCue.test(text) || shifting || vagueShift
   const cancel = /\b(?:cancel|(?:can['’]?t|won['’]?t)\s+make\s+it)\b/i.test(
     text,
   )
-  const firstBooking = bookings[0]
+  // A booking already in progress can receive a late report only.
+  const upcoming = bookings.filter(
+    (target) => Date.parse(target.slot_start_utc) > now.getTime(),
+  )
+  const firstBooking = upcoming[0]
   const change = firstBooking && serviceChangeCue.exec(text)
   const replacement =
     change &&
@@ -170,7 +290,7 @@ export function parseRequest(
     // Upcoming bookings arrive in chronological order.
     const target =
       (schedule.explicitDay &&
-        bookings.find(
+        upcoming.find(
           (candidate) =>
             localStart(candidate).toISODate() === schedule.explicitDay,
         )) ||

@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { CardSchema, type Card } from '@chairside/shared'
 import { DateTime } from 'luxon'
-import { freeBusyExcluding, type CalendarAdapter } from '../calendar/adapter.js'
+import {
+  freeBusyExcluding,
+  listBusyEventsExcluding,
+  type CalendarAdapter,
+  type CalEvent,
+} from '../calendar/adapter.js'
 import { bookingEvent, type BookingRow } from '../db/bookings.js'
 import type { ParseResult } from '../parse/parser.js'
 import type { ShopConfig } from '../shop/config.js'
@@ -22,6 +27,7 @@ export interface CardRequest {
   intent: string
   service_id: string | null
   requested_start_utc: string | null
+  late_impact?: string | null
   status: string
 }
 
@@ -60,6 +66,7 @@ async function availableOpenings(
   requested: string | undefined,
   blocked: Interval[],
   booking?: BookingRow,
+  allowOffGridRequest = false,
 ) {
   const startDay = DateTime.fromMillis(
     Math.max(now.getTime(), requested ? Date.parse(requested) : now.getTime()),
@@ -86,6 +93,7 @@ async function availableOpenings(
     busy: availability.busy,
     from: now.toISOString(),
     requested,
+    allowOffGridRequest,
     horizonDays,
     count: 2,
   }
@@ -105,8 +113,15 @@ export async function planMoveProposals(
   shop: ShopConfig,
   calendar: CalendarAdapter,
   now: Date,
-  blocked: Interval[] = [],
-  requestedDayUtc = booking.slot_start_utc,
+  {
+    blocked = [],
+    requestedDayUtc = booking.slot_start_utc,
+    offerOnly = false,
+  }: {
+    blocked?: Interval[]
+    requestedDayUtc?: string
+    offerOnly?: boolean
+  } = {},
 ): Promise<Proposal[]> {
   const dismiss = proposal('not_now', 'Not now')
   const bookedStart = Date.parse(booking.slot_start_utc)
@@ -128,6 +143,7 @@ export async function planMoveProposals(
     requested,
     blocked,
     booking,
+    offerOnly,
   )
   if (!availability) return [proposal('calendar_error', 'Not now')]
   const requestedMs = Date.parse(requested)
@@ -135,7 +151,7 @@ export async function planMoveProposals(
     startUtc: requested,
     endUtc: new Date(requestedMs + durationMs).toISOString(),
   }
-  if (availability.requestedFits && requestedMs !== bookedStart)
+  if (!offerOnly && availability.requestedFits && requestedMs !== bookedStart)
     return [proposal('move', 'Move & reply', slot), dismiss]
   const next = availability.openings.find(({ startUtc }) => {
     const start = Date.parse(startUtc)
@@ -153,6 +169,109 @@ export async function planMoveProposals(
   ]
 }
 
+function nextEventImpact(
+  next: CalEvent,
+  bufferedEnd: number,
+  shop: ShopConfig,
+): string {
+  const [prefix, name, service] = next.summary.split(' · ')
+  const firstName =
+    next.privateProps.chairsideBookingId && prefix === 'Chairside' && service
+      ? name?.trim().split(/\s+/u)[0]
+      : undefined
+  const over = Math.ceil((bufferedEnd - Date.parse(next.startUtc)) / 60_000)
+  const suffix = ` ${localSlot(next.startUtc, shop, 'HH:mm')} · ${over > 0 ? `${over} min over` : 'fits'}`
+  return `Next: ${displayText(firstName ?? '', 40 - 6 - suffix.length) || 'busy'}${suffix}`
+}
+
+export async function planLateChange(
+  booking: BookingRow,
+  requested: string | undefined,
+  shop: ShopConfig,
+  calendar: CalendarAdapter,
+  now: Date,
+  blocked: Interval[] = [],
+): Promise<{ proposals: Proposal[]; lateImpact?: string }> {
+  const dismiss = proposal('not_now', 'Not now')
+  if (!requested)
+    return { proposals: [proposal('late_ask', 'Ask how late'), dismiss] }
+
+  const bookedStart = Date.parse(booking.slot_start_utc)
+  const durationMs = Date.parse(booking.slot_end_utc) - bookedStart
+  const shiftedStart = Date.parse(requested)
+  const shiftedEnd = shiftedStart + durationMs
+  const day = DateTime.fromMillis(bookedStart, { zone: shop.timezone })
+  const buffer = shop.bufferMin * 60_000
+  const hours = shop.hours[day.weekday]
+  const close =
+    hours &&
+    DateTime.fromISO(`${day.toISODate()}T${hours.close}`, {
+      zone: shop.timezone,
+    })
+  const pastClosing = close && shiftedEnd > close.toMillis()
+  const midnight = day.startOf('day').plus({ days: 1 })
+  const availability = await listBusyEventsExcluding(
+    calendar,
+    day.startOf('day').minus(buffer).toUTC().toISO()!,
+    midnight.plus(buffer).toUTC().toISO()!,
+    bookingEvent(booking),
+  )
+  if (!availability.ok)
+    return { proposals: [proposal('calendar_error', 'Not now')] }
+  const { events } = availability
+  const next = events
+    .filter(({ startUtc, endUtc }) => {
+      const start = Date.parse(startUtc)
+      return (
+        start >= bookedStart &&
+        start < midnight.toMillis() &&
+        Date.parse(endUtc) + buffer > shiftedStart
+      )
+    })
+    .sort((a, b) => Date.parse(a.startUtc) - Date.parse(b.startUtc))[0]
+  const fits =
+    !!close &&
+    !pastClosing &&
+    findOpenings({
+      hours: shop.hours,
+      tz: shop.timezone,
+      durationMin: durationMs / 60_000,
+      bufferMin: shop.bufferMin,
+      gridMin: shop.gridMin,
+      busy: [...events, ...blocked],
+      from: now.toISOString(),
+      requested,
+      allowOffGridRequest: true,
+      horizonDays: 0,
+      count: 0,
+    }).requestedFits
+  const bufferedEnd = shiftedEnd + buffer
+  const lateImpact = pastClosing
+    ? 'Shift would pass closing time'
+    : next && (fits || bufferedEnd > Date.parse(next.startUtc))
+      ? nextEventImpact(next, bufferedEnd, shop)
+      : fits
+        ? 'Nothing after · fits'
+        : 'Shifted time unavailable'
+  const proposals = fits
+    ? [
+        proposal(
+          'late_shift',
+          `Shift to ${localSlot(requested, shop, 'HH:mm')} & reply`,
+          {
+            startUtc: requested,
+            endUtc: new Date(shiftedEnd).toISOString(),
+          },
+        ),
+        dismiss,
+      ]
+    : await planMoveProposals(booking, requested, shop, calendar, now, {
+        blocked,
+        offerOnly: true,
+      })
+  return { proposals, lateImpact }
+}
+
 export async function planProposals(
   parsed: ParseResult,
   shop: ShopConfig,
@@ -162,15 +281,10 @@ export async function planProposals(
   booking?: BookingRow,
 ): Promise<Proposal[]> {
   if (parsed.intent === 'move' && booking)
-    return planMoveProposals(
-      booking,
-      parsed.startUtc,
-      shop,
-      calendar,
-      now,
+    return planMoveProposals(booking, parsed.startUtc, shop, calendar, now, {
       blocked,
-      parsed.requestedDayUtc,
-    )
+      requestedDayUtc: parsed.requestedDayUtc,
+    })
   const dismiss = proposal('not_now', 'Not now')
   if (parsed.intent === 'cancel' && booking)
     return [
@@ -281,15 +395,24 @@ export function buildCard(
   const retryBooking =
     retry?.kind === 'retry_book' || retry?.kind === 'retry_offer_accepted'
   const changeResult =
-    retry?.kind === 'retry_move' || retry?.kind === 'retry_move_offer_accepted'
-      ? 'Moved'
-      : retry?.kind === 'retry_cancel'
-        ? 'Cancelled'
-        : undefined
+    retry?.kind === 'retry_late_shift'
+      ? 'Shifted'
+      : retry?.kind === 'retry_move' ||
+          retry?.kind === 'retry_move_offer_accepted'
+        ? 'Moved'
+        : retry?.kind === 'retry_cancel'
+          ? 'Cancelled'
+          : undefined
   if (request.status === 'reply_unknown') {
     const booked = proposals.some((p) => p.kind === 'unknown_book')
-    if (booked) header = request.intent === 'move' ? 'MOVED' : 'BOOKED'
-    else
+    if (booked) {
+      if (request.late_impact) header = 'SHIFTED'
+      else
+        header =
+          request.intent === 'move' || request.intent === 'late'
+            ? 'MOVED'
+            : 'BOOKED'
+    } else
       header =
         request.intent === 'cancel' && booking?.status === 'cancelled'
           ? 'CANCELLED'
@@ -338,7 +461,29 @@ export function buildCard(
   ) {
     header = 'NEEDS YOU'
     lines.push('Calendar unavailable')
-  } else if (request.intent === 'move' && booking) {
+  } else if (
+    request.intent === 'late' &&
+    booking &&
+    (request.late_impact || !request.requested_start_utc)
+  ) {
+    header = 'RUNNING LATE'
+    const bookedStart = booking.slot_start_utc
+    const oldWhen = localSlot(bookedStart, shop, 'HH:mm')
+    lines[0] = `${displayText(lines[0]!, 40 - oldWhen.length - 1)} ${oldWhen}`
+    const newStart = request.requested_start_utc
+    if (newStart) {
+      const delay = (Date.parse(newStart) - Date.parse(bookedStart)) / 60_000
+      lines.push(
+        `${delay} min late ▶ starts ${localSlot(newStart, shop, 'HH:mm')}`,
+      )
+      if (request.late_impact) lines.push(request.late_impact)
+    } else {
+      lines.push('Late · no time given')
+    }
+  } else if (
+    (request.intent === 'move' || request.intent === 'late') &&
+    booking
+  ) {
     header = 'WANTS TO MOVE'
     const oldStart = booking.slot_start_utc
     const newStart = request.requested_start_utc

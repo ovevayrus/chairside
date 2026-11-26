@@ -145,7 +145,7 @@ export async function acceptOffer(
     // The accepted slot is now what this customer asked for.
     store.db
       .prepare(
-        'UPDATE requests SET requested_start_utc=?,booking_id=? WHERE id=?',
+        'UPDATE requests SET requested_start_utc=?,booking_id=?,late_impact=NULL WHERE id=?',
       )
       .run(slot.startUtc, offer.booking_id, request.id)
     store.close(request.id, 'executing')

@@ -24,7 +24,7 @@ afterEach(() => {
   for (const close of cleanup.splice(0).reverse()) close()
 })
 
-function setup() {
+function setup(now?: () => Date) {
   const db = openDatabase(':memory:')
   const telegram = new FakeTelegramAdapter()
   const calendar = new FakeCalendar()
@@ -37,6 +37,7 @@ function setup() {
     debounceMs: 10,
     telegram,
     calendar,
+    now,
   })
   const pairing = new PairingService({
     db,
@@ -56,6 +57,7 @@ function setup() {
     calendar,
     pairing,
     hub: runtime.hub,
+    now: runtime.store.now,
   }
   return { ...runtime, deps, pairing, telegram, calendar }
 }
@@ -129,8 +131,8 @@ describe('/dev endpoints are dev-only', () => {
 })
 
 describe('/dev endpoints in TEST MODE', () => {
-  function enabled() {
-    const context = setup()
+  function enabled(now?: () => Date) {
+    const context = setup(now)
     const app = createApp({ logger, hub: context.hub })
     mountDevRoutes(app, context.deps, {
       DEV_INJECT: '1',
@@ -167,7 +169,8 @@ describe('/dev endpoints in TEST MODE', () => {
   })
 
   it('injects a DM through the fake adapter: one card, nothing sent', async () => {
-    const { app, store, telegram } = enabled()
+    const now = '2099-12-05T06:00:00.000Z'
+    const { app, store, telegram } = enabled(() => new Date(now))
     const response = await call(app, 'POST', '/dev/inject', {
       firstName: 'Anna',
       text: REQUESTED,
@@ -177,6 +180,7 @@ describe('/dev endpoints in TEST MODE', () => {
     expect(body).toMatchObject({ ok: true })
     expect(JSON.stringify(body)).not.toContain('skin fade')
     await vi.waitFor(() => expect(store.pending()).toHaveLength(1))
+    expect(store.pending()[0]!.last_customer_msg_at).toBe(now)
     const card = store.card(store.pending()[0]!)
     expect(card.header).toBe('NEW REQUEST')
     expect(card.lines[0]).toBe('Anna · Skin fade')

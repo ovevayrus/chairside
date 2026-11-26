@@ -9,6 +9,7 @@ import type { RequestRow, RequestStore } from '../db/requests.js'
 import type { LiveHub } from '../live/hub.js'
 import {
   displayText,
+  planLateChange,
   planMoveProposals,
   planProposals,
   type Proposal,
@@ -107,38 +108,56 @@ export async function taken(
   const { store } = ctx
   const startUtc = p.slot_start_utc!
   const endUtc = p.slot_end_utc!
-  const booking = p.kind.startsWith('move')
-    ? bookingFor(store, row.booking_id)
-    : undefined
+  const booking =
+    p.kind === 'late_shift' || p.kind.startsWith('move')
+      ? bookingFor(store, row.booking_id)
+      : undefined
   const blocked = [{ startUtc, endUtc }]
-  const proposals = booking
-    ? await planMoveProposals(
-        booking,
-        startUtc,
-        store.shop,
-        ctx.calendar,
-        store.now(),
-        blocked,
-      )
-    : await planProposals(
-        {
-          intent: 'book',
-          serviceId: row.service_id ?? store.shop.defaultServiceId,
+  const latePlan =
+    booking && p.kind === 'late_shift'
+      ? await planLateChange(
+          booking,
           startUtc,
-          confidence: 1,
-          needs: [],
-        },
-        store.shop,
-        ctx.calendar,
-        store.now(),
-        blocked,
-      )
+          store.shop,
+          ctx.calendar,
+          store.now(),
+          blocked,
+        )
+      : undefined
+  const proposals =
+    latePlan?.proposals ??
+    (booking
+      ? await planMoveProposals(
+          booking,
+          startUtc,
+          store.shop,
+          ctx.calendar,
+          store.now(),
+          { blocked },
+        )
+      : await planProposals(
+          {
+            intent: 'book',
+            serviceId: row.service_id ?? store.shop.defaultServiceId,
+            startUtc,
+            confidence: 1,
+            needs: [],
+          },
+          store.shop,
+          ctx.calendar,
+          store.now(),
+          blocked,
+        ))
   // A customer said yes to a slot that has gone: the card says so and offers the next one.
   const accepted =
     p.kind === 'offer_accepted' || p.kind === 'move_offer_accepted'
   const name = displayText(row.customer_first_name, 24) || 'Customer'
   return store.transaction(() => {
     releaseBookingChange(store, row.booking_id, action.id)
+    if (latePlan)
+      store.db
+        .prepare('UPDATE requests SET late_impact=? WHERE id=?')
+        .run(latePlan.lateImpact ?? null, row.id)
     const card = replaceCard(
       ctx,
       row,

@@ -25,18 +25,20 @@ const STRIPPED = [
 ]
 
 export class Backend {
-  constructor() {
+  constructor({ now } = {}) {
     this.dir = mkdtempSync(join(tmpdir(), 'chairside-e2e-'))
     this.dbPath = join(this.dir, 'chairside-e2e.db')
     // Kept across a restart so a paired device token stays valid.
     this.pepper = randomBytes(32).toString('hex')
     this.base = `http://127.0.0.1:${ports.backend}`
+    this.now = now
     this.proc = undefined
   }
 
   env() {
     const env = { ...process.env }
     for (const name of STRIPPED) delete env[name]
+    delete env.DEV_NOW
     return {
       ...env,
       PORT: String(ports.backend),
@@ -45,6 +47,10 @@ export class Backend {
       TELEGRAM_MODE: 'business',
       DATABASE_PATH: this.dbPath,
       DEVICE_TOKEN_PEPPER: this.pepper,
+      ...(this.now && {
+        DEV_NOW: this.now.toISOString(),
+        SHOP_CONFIG_PATH: join(root, 'config', 'shop.demo.json'),
+      }),
     }
   }
 

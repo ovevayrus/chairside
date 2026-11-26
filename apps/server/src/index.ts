@@ -79,6 +79,10 @@ function startRuntime() {
     ? new FakeTelegramAdapter()
     : new Adapter({ token: token!, ownerUserId })
   const shop = loadShopConfig(process.env.SHOP_CONFIG_PATH)
+  // The full simulator run needs the shop to be open at a repeatable time.
+  const devNow = testMode ? process.env.DEV_NOW : undefined
+  const devTimestamp = devNow === undefined ? undefined : Date.parse(devNow)
+  if (Number.isNaN(devTimestamp)) throw new Error('DEV_NOW must be a date')
   const serverRoot = fileURLToPath(new URL('../', import.meta.url))
   const dbPath = resolve(
     serverRoot,
@@ -107,6 +111,8 @@ function startRuntime() {
       business,
       calendar,
       telegram,
+      now:
+        devTimestamp === undefined ? undefined : () => new Date(devTimestamp),
       ownerUserId:
         Number.isSafeInteger(ownerUserId) && ownerUserId > 0
           ? ownerUserId
@@ -183,6 +189,7 @@ if (
     calendar: runtime.calendar,
     pairing: runtime.pairing,
     hub: runtime.hub,
+    now: runtime.store.now,
   })
 }
 const server = serve(

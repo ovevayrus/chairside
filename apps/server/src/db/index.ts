@@ -12,6 +12,10 @@ const migrations = [
     version: 3,
     file: new URL('../../src/db/003-booking-changes.sql', import.meta.url),
   },
+  {
+    version: 4,
+    file: new URL('../../src/db/004-running-late.sql', import.meta.url),
+  },
 ]
 
 export function runMigrations(db: DatabaseSync): void {

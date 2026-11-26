@@ -199,6 +199,7 @@ export async function reserve(
         busy: [],
         from: store.now().toISOString(),
         requested: input.startUtc,
+        allowOffGridRequest: p.kind === 'late_shift',
         horizonDays: 0,
         count: 0,
       }).requestedFits

@@ -70,13 +70,12 @@ export function matchesBooking(
   )
 }
 
-/** freeBusy intervals have no event IDs and may combine separate events. */
-export async function freeBusyExcluding(
+export async function listBusyEventsExcluding(
   calendar: CalendarAdapter,
   rangeStartUtc: string,
   rangeEndUtc: string,
   ownership: CalendarOwnership,
-): Promise<FreeBusyResult> {
+): Promise<{ ok: true; events: CalEvent[] } | { ok: false; reason: string }> {
   try {
     const events = await calendar.listEvents(rangeStartUtc, rangeEndUtc)
     if (
@@ -87,13 +86,34 @@ export async function freeBusyExcluding(
       return { ok: false, reason: 'Calendar returned an invalid interval' }
     return {
       ok: true,
-      busy: events
-        .filter(
-          (event) => !event.transparent && !matchesBooking(event, ownership),
-        )
-        .map(({ startUtc, endUtc }) => ({ startUtc, endUtc })),
+      events: events.filter(
+        (event) => !event.transparent && !matchesBooking(event, ownership),
+      ),
     }
   } catch {
     return { ok: false, reason: 'Calendar unavailable' }
+  }
+}
+
+/** freeBusy intervals have no event IDs and may combine separate events. */
+export async function freeBusyExcluding(
+  calendar: CalendarAdapter,
+  rangeStartUtc: string,
+  rangeEndUtc: string,
+  ownership: CalendarOwnership,
+): Promise<FreeBusyResult> {
+  const availability = await listBusyEventsExcluding(
+    calendar,
+    rangeStartUtc,
+    rangeEndUtc,
+    ownership,
+  )
+  if (!availability.ok) return availability
+  return {
+    ok: true,
+    busy: availability.events.map(({ startUtc, endUtc }) => ({
+      startUtc,
+      endUtc,
+    })),
   }
 }

@@ -26,7 +26,7 @@ export function bookingFor(
     .get(store.shopId, bookingId) as unknown as BookingRow | undefined
 }
 
-export function upcomingBookings(
+export function unendedBookings(
   store: RequestStore,
   chatId: number,
 ): BookingRow[] {
@@ -34,7 +34,7 @@ export function upcomingBookings(
     .prepare(
       `SELECT b.* FROM bookings b JOIN requests r ON r.id=b.request_id
       WHERE b.shop_id=? AND r.chat_id=? AND b.status='active' AND b.reply_status='sent'
-      AND b.slot_start_utc>? ORDER BY b.slot_start_utc, b.rowid`,
+      AND b.slot_end_utc>? ORDER BY b.slot_start_utc, b.rowid`,
     )
     .all(
       store.shopId,

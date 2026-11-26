@@ -127,11 +127,13 @@ export class ActionExecutor {
         changed: true,
       }
     if (
-      ['move_offer', 'retry_move_offer'].includes(p.kind) &&
+      ['move_offer', 'retry_move_offer', 'late_ask', 'retry_late_ask'].includes(
+        p.kind,
+      ) &&
       !currentBooking(ctx, row)
     )
       return { response: bookingUnavailable(ctx, a, row), changed: true }
-    if (p.kind === 'move') {
+    if (p.kind === 'move' || p.kind === 'late_shift') {
       const response = await moveBooking(ctx, a, row, p)
       if (response) return { response, changed: true }
     } else if (p.kind === 'cancel') {
@@ -146,15 +148,18 @@ export class ActionExecutor {
         'move_offer',
         'ask_day',
         'ask_time',
+        'late_ask',
         'retry_book',
         'retry_offer',
         'retry_offer_accepted',
         'retry_move',
+        'retry_late_shift',
         'retry_move_offer_accepted',
         'retry_move_offer',
         'retry_cancel',
         'retry_ask_day',
         'retry_ask_time',
+        'retry_late_ask',
       ].includes(p.kind)
     ) {
       return {

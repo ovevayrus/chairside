@@ -53,10 +53,11 @@ describe('shop configuration', () => {
 
   it('fills in booking change replies for an older shop configuration', () => {
     const shop = loadShopConfig()
-    const { moved, cancelled, ...legacyTemplates } = shop.replyTemplates
+    const { moved, cancelled, late_ok, late_ask, ...legacyTemplates } =
+      shop.replyTemplates
     expect(
       shopConfigSchema.parse({ ...shop, replyTemplates: legacyTemplates })
         .replyTemplates,
-    ).toEqual({ ...legacyTemplates, moved, cancelled })
+    ).toEqual({ ...legacyTemplates, moved, cancelled, late_ok, late_ask })
   })
 })
